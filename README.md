@@ -19,7 +19,7 @@
 
 需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**。首次安装依赖需要联网，准备完成后可离线使用。
 
-普通用户可以从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载含已构建前端的 `MathMaster-0.1.0-local.zip`；仅需 Python，无需 Node.js。
+普通用户可以从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载含已构建前端的 `MathMaster-0.1.1-local.zip`；仅需 Python，无需 Node.js。
 
 ### Windows
 
@@ -93,3 +93,9 @@ npm run build
 ## 许可
 
 项目采用 [AGPL-3.0-only](LICENSE)。PDF 处理使用 PyMuPDF 的开源许可路径；再分发修改版或提供网络服务时，请遵守适用的许可与源码提供要求。第三方试卷不因导入本项目而获得同样的开源许可。
+
+## 关键词
+
+考研数学、考研、数学、学习、数学学习、数学一、数学二、数学三、高等数学、线性代数、微积分、积分、求导、矩阵、行列式、数学计算器、刷题、错题本、电子草稿、离线学习。
+
+English: kaoyan, mathematics, learning, education, calculus, linear algebra, symbolic computation, math calculator, offline study, SymPy.
