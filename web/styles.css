@@ -95,10 +95,13 @@
 }
 
 .touchpad-error{font-size:11px;color:#9a3025;max-width:270px;white-space:normal}
-.touchpad-overlay{position:fixed;inset:0;z-index:110;background:#ffffff38;cursor:none;touch-action:none;overscroll-behavior:none}
+.touchpad-overlay{position:fixed;inset:0;z-index:110;background:#ffffff38;cursor:crosshair;touch-action:none;overscroll-behavior:none}
 .touchpad-controls{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #bbb;padding:7px 12px;font-size:12px;cursor:default}
 .touchpad-controls label{display:flex;align-items:center;gap:6px}.touchpad-controls select{width:60px;padding:3px}.touchpad-controls button{padding:4px 12px;border:1px solid #ccc}
 .touchpad-writing{position:absolute;background:#fffffff2;border:1px solid #bbb;box-shadow:0 4px 24px #00000012;pointer-events:none}
+.touchpad-target{position:absolute;z-index:2;box-sizing:border-box;border:1px dashed #317959;background:#3179590a;pointer-events:none}
+.touchpad-target span{position:absolute;bottom:100%;left:0;padding:2px 5px;background:#317959;color:white;font-size:10px;white-space:nowrap}
+.touchpad-location-status{flex-basis:100%;text-align:center;color:#52645a;font-size:11px}
 .touchpad-center{stroke:#ddd;stroke-width:1}.touchpad-stamp{position:fixed;z-index:115;pointer-events:none;animation:ink-stamp .3s ease-out forwards;overflow:visible;transform-origin:top left}
 @keyframes ink-stamp{from{opacity:1;transform:translate(0,0) scale(1)}80%{opacity:1}to{opacity:0;transform:translate(var(--stamp-x),var(--stamp-y)) scale(var(--stamp-scale))}}
 

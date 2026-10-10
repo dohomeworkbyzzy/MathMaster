@@ -64,8 +64,9 @@ try{
  await stage('1. 开启触控板书写，用外接鼠标定位落笔中心',2200);
  await page.getByRole('button',{name:'触控板书写',exact:true}).click();await page.getByRole('dialog',{name:'触控板放大书写区'}).waitFor();
  const canvas=page.getByLabel('电子草稿画布');const box=await canvas.boundingBox();
+ await canvas.evaluate(el=>{const b=el.getBoundingClientRect();window.__demoPad.onmessage({data:JSON.stringify({type:'mouse',screen_x:window.screenX+b.left+b.width*.2,screen_y:window.screenY+window.outerHeight-window.innerHeight+b.top+b.width*.1125})});});
  await page.locator('#demo-cursor').evaluate((el,b)=>{el.style.left=(b.x+b.width*.2)+'px';el.style.top=(b.y+b.width*.1125)+'px';},box);
- await stage('2. 单指书写；触控板坐标映射到放大区域，光标保持落笔位置',1800);
+ await stage('2. 先选草稿落笔范围，再单指书写；光标保持落笔位置',1800);
  const emit=async events=>page.evaluate(events=>{for(const e of events)window.__demoPad.onmessage({data:JSON.stringify(e)});},events);
  const strokes=[[[.15,.34],[.29,.66]],[[.15,.66],[.29,.34]],[[.33,.28],[.36,.22],[.4,.22],[.43,.26],[.41,.3],[.35,.35],[.43,.35]],[[.49,.5],[.64,.5]],[[.565,.36],[.565,.64]],[[.73,.4],[.79,.34],[.79,.66]],[[.74,.66],[.84,.66]]];
  function interpolate(line){return line.flatMap((p,i)=>i===0?[p]:Array.from({length:6},(_,k)=>[line[i-1][0]+(p[0]-line[i-1][0])*(k+1)/6,line[i-1][1]+(p[1]-line[i-1][1])*(k+1)/6]));}
