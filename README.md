@@ -17,11 +17,15 @@
 
 ## 快速开始
 
-需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**。首次安装依赖需要联网，准备完成后可离线使用。
+**Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.2.0-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
 
-普通用户可以从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载含已构建前端的 `MathMaster-0.1.1-local.zip`；仅需 Python，无需 Node.js。
+安装版适用于 Windows 10/11 x64，自带 Python、SymPy 和前端，不需要另外安装 Python、Node.js 或联网下载依赖。安装到当前用户目录，无需管理员权限。题库和记录在 `%LOCALAPPDATA%\MathMaster\data`，升级和卸载保留数据。任务栏托盘菜单可以打开界面、打开数据文件夹或退出本地服务。
 
-### Windows
+安装包目前未进行代码签名，Windows 可能提示未知发布者。请从本仓库 Releases 下载，并核对配套 SHA256 校验文件。扫描件 OCR、DOCX 原版式转换仍分别需要可选的 Tesseract 和 LibreOffice。
+
+源码运行需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**；首次安装依赖需要联网。也可下载 `MathMaster-0.2.0-local.zip`，它包含已构建前端，仅需 Python，无需 Node.js。
+
+### Windows 源码 / ZIP 运行
 
 1. 安装 [Python](https://www.python.org/downloads/) 并勾选 **Add Python to PATH**，安装 [Node.js LTS](https://nodejs.org/)。
 2. 下载仓库 ZIP 并完整解压，或者克隆源码。
@@ -44,10 +48,23 @@ bash start.sh
 
 新安装的题库为空。本仓库不上传作者的个人题库、作答记录或第三方真题。可以导入自己的试卷，可选公开真题导入脚本的用法见操作手册。
 
+## 功能演示
+
+积分、求导与矩阵计算：下图为实际界面和本地 SymPy 计算录制。
+
+![本地积分、求导和矩阵计算](docs/demos/calculator.gif)
+
+笔记本触控板当草稿：开启书写 → 单指落笔与抬指 → 外接鼠标移动收笔 → 调小书写区 → 自动保存。
+
+![触控板书写操作示意](docs/demos/trackpad.gif)
+
+触控板 GIF 使用合成触点演示真实前端的笔画映射与保存，画面中已标注“操作示意”，并非实体手指录制。实际使用需要 Windows Precision Touchpad 和外接鼠标，设备兼容性需要实机确认。
+
 ## 文档
 
 - [使用手册](docs/使用手册.md)：安装、公式输入、试卷导入、校对、做题、触控板、备份、常见问题。
 - [技术说明](docs/技术说明.md)：技术栈、架构、步骤 JSON、API、解析限制、进程隔离及开发方式。
+- [Windows 安装版与打包](docs/Windows安装版.md)：安装、升级、数据迁移、卸载及复现打包。
 - [第三方许可](docs/第三方许可.md)：依赖与资料来源说明。
 - [数学工作台实现说明](docs/数学工作台实现与验收说明.md)：数学规则适配、验证及早期验收记录。
 

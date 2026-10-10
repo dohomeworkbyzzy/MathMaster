@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from . import db
 from .jobs import run_job, JobError, ROOT
+from .runtime import worker_command
 from .touchpad import bridge as touchpad_bridge, status as touchpad_status
 
 
@@ -284,7 +285,7 @@ def import_paper(file:UploadFile=File(...),subject:str=Form('数学一'),title:s
                 size+=len(chunk)
                 if size>30*1024*1024:raise HTTPException(413,'单个文件最多 30 MB。')
                 output.write(chunk)
-        proc=subprocess.Popen([sys.executable,'-m','backend.importer'],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',env={**os.environ,'PYTHONUTF8':'1'},start_new_session=os.name!='nt')
+        proc=subprocess.Popen(worker_command('backend.importer'),cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',env={**os.environ,'PYTHONUTF8':'1'},start_new_session=os.name!='nt',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         try: stdout,_=proc.communicate(json.dumps({'path':str(path.resolve())}),timeout=120)
         except subprocess.TimeoutExpired:
             if os.name=='nt':subprocess.run(['taskkill','/F','/T','/PID',str(proc.pid)],capture_output=True)

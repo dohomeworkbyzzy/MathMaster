@@ -4,8 +4,8 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from .runtime import ROOT, worker_command
 
-ROOT=Path(__file__).resolve().parents[1]
 TIMEOUT=float(os.environ.get('MATHMASTER_TIMEOUT','15'))
 SLOTS=threading.BoundedSemaphore(2)
 class JobError(ValueError): pass
@@ -15,9 +15,10 @@ def run_job(operation,request,timeout=TIMEOUT):
     if not SLOTS.acquire(blocking=False): raise JobError('计算任务繁忙，请等待当前任务结束。')
     process=None
     try:
-        process=subprocess.Popen([sys.executable,'-m','backend.worker'],cwd=ROOT,
+        process=subprocess.Popen(worker_command('backend.worker'),cwd=ROOT,
             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',
-            env={**os.environ,'PYTHONUTF8':'1'},start_new_session=os.name!='nt')
+            env={**os.environ,'PYTHONUTF8':'1'},start_new_session=os.name!='nt',
+            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         try:
             stdout,_=process.communicate(json.dumps({'operation':operation,'request':request}),timeout=timeout)
         except subprocess.TimeoutExpired:

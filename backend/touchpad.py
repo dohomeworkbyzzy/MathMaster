@@ -10,6 +10,7 @@ import threading
 import time
 import ctypes as c
 from .jobs import ROOT
+from .runtime import worker_command
 
 
 class ClipRect(c.Structure):
@@ -29,7 +30,7 @@ def status():
         return {'available': False, 'devices': [], 'external_mice': 0,
                 'message': '原始触控板书写需要使用 Windows 的 start.bat 启动。'}
     try:
-        p = subprocess.run([sys.executable, '-m', 'backend.touchpad_native', '--probe'],
+        p = subprocess.run(worker_command('backend.touchpad_native', '--probe'),
                            cwd=ROOT, capture_output=True, timeout=4,
                            creationflags=subprocess.CREATE_NO_WINDOW)
         return json.loads(p.stdout)
@@ -47,7 +48,7 @@ class Session:
         self.created = time.monotonic()
         self.window_handle = None
         self.original_clip = clip_snapshot()
-        self.process = subprocess.Popen([sys.executable, '-m', 'backend.touchpad_native'],
+        self.process = subprocess.Popen(worker_command('backend.touchpad_native'),
                                         cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         threading.Thread(target=self.read, daemon=True).start()

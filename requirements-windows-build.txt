@@ -1,0 +1,5 @@
+-r requirements.lock
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.8
+pystray==0.19.5
+six==1.17.0

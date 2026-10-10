@@ -1,0 +1,45 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-windows-build.txt
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Prepare verified Inno Setup
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' -OutFile .tools/inno.exe
+          $signature = Get-AuthenticodeSignature .tools/inno.exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys') { throw 'Inno Setup signature verification failed' }
+          $toolDir = Join-Path $PWD '.tools\innosetup'
+          $process = Start-Process -FilePath .tools/inno.exe -ArgumentList '/PORTABLE=1','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$toolDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Inno Setup extraction failed' }
+      - name: Build installer
+        run: python scripts/build_windows.py --iscc .tools/innosetup/ISCC.exe
+      - name: Verify frozen application
+        run: python scripts/check_windows_package.py artifacts/windows/MathMaster/MathMaster.exe --headless-only
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MathMaster-Windows-installer
+          path: |
+            artifacts/MathMaster-Setup-*-x64.exe*
+            artifacts/MathMaster-*-local.zip*

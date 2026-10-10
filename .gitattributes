@@ -7,3 +7,5 @@
 *.woff binary
 *.woff2 binary
 *.ttf binary
+*.gif binary
+*.ico binary
