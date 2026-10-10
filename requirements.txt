@@ -1,0 +1,8 @@
+sympy==1.14.0
+fastapi==0.143.0
+uvicorn==0.54.0
+python-multipart>=0.0.20,<1
+pymupdf>=1.26,<2
+python-docx>=1.2,<2
+Pillow>=11,<13
+pytesseract>=0.3.13,<1

@@ -1,0 +1,22 @@
+import { Check, ChevronRight, Copy, FilePlus2, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import type { Result, Step } from './types';
+import { Formula } from './math';
+export type Mode='full'|'answer'|'hints';
+const labels:Record<string,string>={PartsRule:'分部积分',URule:'换元积分',AddRule:'逐项积分',ConstantTimesRule:'提出常数',PowerRule:'幂函数公式',ArctanRule:'反正切公式',ExpRule:'指数积分',SinRule:'正弦积分',CosRule:'余弦积分',ReciprocalRule:'对数积分',RewriteRule:'恒等变形',verification:'独立验证',chain:'链式法则',power:'幂函数求导',product:'乘积法则',quotient:'商法则',sum:'逐项求导',swap:'交换行',scale:'倍乘行',replace:'倍加行',one_sided_limits:'单侧极限与收敛',inverse_verification:'逆矩阵验证',solution_verification:'回代验证',triangular_determinant:'行列式结果',cofactor_expansion:'按行展开',parts_identity:'分部积分公式',substitution:'变换积分变量',algebraic_rewrite:'代数恒等变形',verified_result:'结果验证',real_log_form:'对数的实数形式',rank_count:'计算矩阵秩'};
+export function StepView({step,index}:{step:Step;index?:number}){
+ return <details className="step" open><summary><span className="step-number">{index!==undefined?String(index+1).padStart(2,'0'):<ChevronRight size={13}/>}</span><b>{labels[step.rule]||step.rule}</b><span className={step.verified?'step-check':'step-unchecked'}>{step.verified?'关系已验证':'未能验证'}</span></summary>
+  <div className="step-content"><p>{step.explanation_zh}</p>{step.formula_latex&&<Formula latex={step.formula_latex}/>} {step.choices_latex&&<Formula latex={step.choices_latex}/>}<div className="step-equation"><Formula latex={step.before_latex}/><span className="transform-arrow">↓</span><Formula latex={step.after_latex}/></div>{step.determinant_effect&&<p className="det-effect">行列式：{step.determinant_effect}</p>}{step.children.map(child=><StepView key={child.step_id} step={child}/>)}</div></details>;
+}
+function flatten(steps:Step[]):Step[]{return steps.flatMap(st=>[...flatten(st.children),{...st,children:[]}]);}
+export function ResultView({result,mode='full',insert,notify}:{result:Result;mode?:Mode;insert?:()=>void;notify:(s:string)=>void}){
+ const [hint,setHint]=useState(1);const list=flatten(result.steps);const visible=mode!=='hints'||hint>=list.length;
+ async function copy(text:string){try{await navigator.clipboard.writeText(text);notify('已复制到剪贴板');}catch{notify('浏览器未允许剪贴板操作，请选中结果复制。');}}
+ return <div className="result-content"><div className="result-heading"><span className="eyebrow">CALCULATION RESULT</span><span className={'verified-badge '+(!result.verified?'unverified':'')}><ShieldCheck size={14}/>{result.verified?'验证通过':'验证未完成'}</span></div><div className="original-formula"><Formula latex={result.input_latex}/></div>
+ {visible&&<div className="answer-box"><div className="answer-label"><span>精确结果</span><span>{result.status==='conditional'?'在所列条件下成立':result.operation==='integrate'&&result.exact_result?.endsWith('+ C')?'含积分常数 C':''}</span></div><Formula latex={result.result_latex}/>{result.approximate_result&&<span className="approx">≈ {result.approximate_result}</span>}</div>}
+ <div className="result-actions"><button className="text-button" onClick={()=>copy(result.exact_result||result.status||'')} disabled={!visible}><Copy size={14}/>复制结果</button><button className="text-button" onClick={()=>copy(result.result_latex)} disabled={!visible}><Copy size={14}/>复制 LaTeX</button>{insert&&<button className="text-button accent" onClick={insert}><FilePlus2 size={15}/>插入解题笔记</button>}</div>
+ <div className="conditions"><span>计算方法</span><p>{result.method}</p>{result.assumptions.map((a,i)=><div key={i}>条件：{a.startsWith('实数定义域：')?<><span>实数定义域：</span><Formula latex={a.slice(6)} inline/></>:a.includes('\\')?<Formula latex={a} inline/>:a}</div>)}</div>
+ {result.warnings.length>0&&<div className="warnings">{result.warnings.map((w,i)=><p key={i}>{w}</p>)}</div>}
+ {mode!=='answer'&&<div className="derivation"><div className="derivation-title"><b>推导过程</b><span>{result.steps_complete?'完整规则步骤':'部分步骤 · 如实降级'}</span></div>{mode==='full'?result.steps.map((st,i)=><StepView key={st.step_id} step={st} index={i}/>):<>{list.slice(0,hint).map((st,i)=><StepView key={st.step_id} step={st} index={i}/>)}{hint<list.length&&<button className="secondary wide" onClick={()=>setHint(h=>h+1)}>显示下一步提示 <ChevronRight size={15}/></button>}</>}{result.steps.length===0&&<p className="muted">没有可展示且通过验证的详细推导。</p>}</div>}
+ <div className="result-foot"><Check size={13}/> 已自动保存到本地计算记录 · {new Date(result.created_at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</div></div>;
+}
