@@ -2,6 +2,7 @@
 import ctypes as c
 import os
 from threading import RLock
+from .desktop_focus import workspace_window
 
 _saved = {}
 _lock = RLock()
@@ -25,8 +26,7 @@ def change(mode):
                                [c.c_void_p,c.c_uint32,c.c_void_p,c.c_void_p])(process,0,image,c.byref(length))
     finally:
         if process:fn(kernel,'CloseHandle',c.c_int,[c.c_void_p])(process)
-    if not valid or 'MathMaster' not in text.value or image.value.rsplit('\\',1)[-1].lower() not in {
-            'msedge.exe','chrome.exe','firefox.exe','brave.exe','vivaldi.exe','opera.exe'}:
+    if not valid or not workspace_window(text.value, image.value):
         raise ValueError('请先切回 MathMaster 窗口，再使用窗口控制。')
     class Rect(c.Structure):
         _fields_=[('left',c.c_int32),('top',c.c_int32),('right',c.c_int32),('bottom',c.c_int32)]

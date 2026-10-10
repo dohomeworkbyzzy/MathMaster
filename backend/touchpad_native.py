@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from .cursor_lock import CursorLock
+from .desktop_focus import BROWSERS, workspace_title
 
 U16 = c.c_uint16
 U32 = c.c_uint32
@@ -238,7 +239,6 @@ class Reader:
         open_process = configure(kernel, 'OpenProcess', PTR, [U32, I32, U32])
         process_name = configure(kernel, 'QueryFullProcessImageNameW', I32, [PTR, U32, PTR, PTR])
         close_handle = configure(kernel, 'CloseHandle', I32, [PTR])
-        browsers = {'chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'vivaldi.exe', 'opera.exe'}
         browser_cache = {}
         pending_mouse = False
         active_window = None
@@ -246,7 +246,7 @@ class Reader:
             win = foreground()
             text = c.create_unicode_buffer(512)
             title(win, text, len(text))
-            if 'MathMaster' not in text.value:
+            if not workspace_title(text.value):
                 return None
             pid = U32()
             window_pid(win, c.byref(pid))
@@ -258,7 +258,7 @@ class Reader:
                 if process_handle:
                     try:
                         if process_name(process_handle, 0, image, c.byref(length)):
-                            supported = image.value.rsplit('\\', 1)[-1].lower() in browsers
+                            supported = image.value.rsplit('\\', 1)[-1].lower() in BROWSERS
                     finally:
                         close_handle(process_handle)
                 if len(browser_cache) > 128:
