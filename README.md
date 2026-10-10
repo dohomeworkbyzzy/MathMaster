@@ -15,6 +15,8 @@
 - **记录与备份**：自动保存答案、笔记、笔画、计算历史；继续作答、错题本、Markdown 导出与完整本地备份。
 - **Windows 触控板书写**：读取兼容 Precision Touchpad 的原始坐标，用外接鼠标定位和收笔；书写区大小可调，独立窗口可缩小、还原和最小化。
 
+界面皮肤切换计划在下一版本发布，尚未包含在当前 v0.2.0 安装版中。
+
 ## 快速开始
 
 **Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.2.0-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
@@ -113,6 +115,4 @@ npm run build
 
 ## 关键词
 
-考研数学、考研、数学、学习、数学学习、数学一、数学二、数学三、高等数学、线性代数、微积分、积分、求导、矩阵、行列式、数学计算器、刷题、错题本、电子草稿、离线学习。
-
-English: kaoyan, mathematics, learning, education, calculus, linear algebra, symbolic computation, math calculator, offline study, SymPy.
+考研数学 / Kaoyan math · 做题 / Math practice · 学习 / Learning · 错题本 / Mistake notebook · 电子草稿 / Digital scratchpad · 离线学习 / Offline study。
