@@ -45,6 +45,7 @@ test('paper, preview and saved ink follow the OS scheme and selected skin',async
  const paper=page.getByLabel('电子草稿画布');
  await expect.poll(()=>paper.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(36, 38, 40)');
  await page.getByRole('button',{name:'触控板书写',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'触控板放大书写区'})).toBeVisible();
  await paper.evaluate(el=>{const r=el.getBoundingClientRect();(window as any).__pad.onmessage({data:JSON.stringify({type:'mouse',screen_x:screenX+r.left+r.width*.4,screen_y:screenY+outerHeight-innerHeight+r.top+70})});});
  const preview=page.getByLabel('放大笔迹');await expect(preview).toBeVisible();
  expect(await preview.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(36, 38, 40)');
