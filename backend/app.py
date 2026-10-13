@@ -41,7 +41,7 @@ async def lifespan(app):
         touchpad_bridge.stop()
         phonepad_bridge.stop()
 
-app=FastAPI(title='MathMaster 本地 API',version='0.3.0',lifespan=lifespan)
+app=FastAPI(title='MathMaster 本地 API',version='0.3.1',lifespan=lifespan)
 
 @app.middleware('http')
 async def local_only(request:Request,call_next):

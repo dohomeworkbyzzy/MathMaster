@@ -5,6 +5,7 @@ import { Calculator } from './Calculator';
 import { RichText } from './math';
 import { ResultView } from './Steps';
 import {TouchpadInk} from './TouchpadInk';
+import {QuestionImages} from './QuestionImages';
 
 interface Point {x:number;y:number}
 type Stroke=Point[];
@@ -86,6 +87,7 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  const {attempt,update,flush,saveState,recovery,restoreRecovery,downloadRecovery}=useAttempt(question,notify);const [notePreview,setNotePreview]=useState(false);const [reference,setReference]=useState(false);
  const [collapsed,setCollapsed]=useState(false);const [floating,setFloating]=useState(false);const [fullscreen,setFullscreen]=useState(false);const [send,setSend]=useState('');const [selection,setSelection]=useState<string|null>(null);const [calculations,setCalculations]=useState(question.calculations||[]);
  const [autoLayout,setAutoLayout]=useState(true);const [questionHeight,setQuestionHeight]=useState(240);
+ const [fitImages,setFitImages]=useState(true);const fittingImages=fitImages&&question.images.length>0;
  const [manualAreaHeight,setManualAreaHeight]=useState(0);
  const [availableHeight,setAvailableHeight]=useState(650);const [calculatorWidth,setCalculatorWidth]=useState(340);
  const [compact,setCompact]=useState(()=>window.innerWidth<=900||window.innerHeight<=680);
@@ -103,13 +105,13 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
   const measure=()=>{
    const available=Math.max(compact?260:410,window.innerHeight-area.getBoundingClientRect().top-(compact?0:window.scrollY)-12);
    setAvailableHeight(available);
-   if(autoLayout)setQuestionHeight(Math.max(minimumQuestion,Math.min(Math.ceil(content.getBoundingClientRect().height)+2,compact?Math.min(available-minimumDraft-10,available*.5):Infinity)));
+   if(autoLayout)setQuestionHeight(Math.max(minimumQuestion,fittingImages?Math.min(available-minimumDraft-10,available*.5):Math.min(Math.ceil(content.getBoundingClientRect().height)+2,compact?Math.min(available-minimumDraft-10,available*.5):Infinity)));
    else setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(height,(compact?available:Math.max(available,manualAreaHeight))-minimumDraft-10)));
   };
   const observer=new ResizeObserver(measure);observer.observe(content);observer.observe(area);
   window.addEventListener('resize',measure);measure();
   return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
- },[autoLayout,manualAreaHeight,compact,minimumQuestion,minimumDraft]);
+ },[autoLayout,manualAreaHeight,compact,minimumQuestion,minimumDraft,fittingImages]);
  useEffect(()=>{registerFlush(flush);return()=>registerFlush(null);},[flush]);
  function resizeQuestion(e:React.PointerEvent<HTMLDivElement>){
   e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setAutoLayout(false);
@@ -133,11 +135,11 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  return <><div className={"practice-bar"+(compact?" compact-practice":"")}><button className="text-button" onClick={onBack}><ArrowLeft size={15}/>返回题库</button><div className="practice-title"><span className="subject-tag">{question.subject}</span><b>第 {question.number} 题</b><span>{question.paper_title||'本地题库'}</span></div><div className="practice-tools"><span className="save-status"><Save size={13}/>{saveState}</span><button className="secondary small" aria-pressed={autoLayout} onClick={()=>{setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setAutoLayout(value=>!value);}}>{autoLayout?'自动调节：开':'自动调节：关'}</button><button className="secondary small" onClick={()=>onNext(-1)}>上一题</button><button className="secondary small" onClick={()=>onNext(1)}>下一题</button>{compact&&<button className="secondary small" aria-pressed={notesOpen} onClick={()=>setNotesOpen(v=>!v)}>笔记与答案</button>}{calcHidden&&<button className="secondary small" onClick={()=>{setCollapsed(false);setCompactCalc(true);}}>展开计算器</button>}</div></div>
  <div className={"practice-panes"+(compact?" compact-practice":"")} ref={panes} style={{height:areaHeight}}>
  <div className="practice-stack">
-  <section className="question-pane pane" aria-label="题目区" style={{height:questionHeight}}>
+  <section className={'question-pane pane'+(fittingImages?' fit-question-images':'')} aria-label="题目区" style={{height:questionHeight}}>
    <div className="question-content" ref={questionContent}>
-    <div className="pane-heading"><span>题目{!question.confirmed&&<small className="question-review">题图 / 文字待核对</small>}</span><div><button className="text-button" onClick={()=>setSelection(window.getSelection()?.toString().trim()||'')}><Send size={13}/>选中表达式发送到计算器</button><button className="text-button" onClick={onEdit}>{question.confirmed?'编辑题目':'检查拆题'}</button></div></div>
+    <div className="pane-heading"><span>题目{!question.confirmed&&<small className="question-review">题图 / 文字待核对</small>}{question.images.length>0&&<button className="text-button question-image-toggle" onClick={()=>setFitImages(value=>!value)} title={fitImages?'切换为按宽度放大，可滚动查看细节':'按题目区宽高等比例缩小，完整显示所有题图'}>{fitImages?'放大题图':'完整题图'}</button>}</span><div><button className="text-button" onClick={()=>setSelection(window.getSelection()?.toString().trim()||'')}><Send size={13}/>选中表达式发送到计算器</button><button className="text-button" onClick={onEdit}>{question.confirmed?'编辑题目':'检查拆题'}</button></div></div>
     {question.images.length>0?<details className="question-context"><summary>题目说明与识别文字</summary><div className="question-text" onMouseUp={()=>{const text=window.getSelection()?.toString().trim();if(text&&text.length<=600)setSelection(text);}}><RichText text={question.text||'请以原始题图为准。'}/></div>{question.source_filename&&<a className="text-button" href={'/api/files/'+question.source_filename} target="_blank" rel="noreferrer">打开原始试卷 ↗</a>}</details>:<div className="question-text" onMouseUp={()=>{const text=window.getSelection()?.toString().trim();if(text&&text.length<=600)setSelection(text);}}><RichText text={question.text}/></div>}
-    <div className="question-images">{question.images.map((src,i)=><a href={'/api/files/'+src} target="_blank" key={src} rel="noreferrer"><img className="question-image" src={'/api/files/'+src} alt={`题目原始截图 ${i+1}`}/></a>)}</div>
+    <QuestionImages images={question.images} fit={fittingImages}/>
    </div>
   </section>
   <div className="question-draft-divider" role="separator" aria-label="调整题目与草稿高度" aria-orientation="horizontal" aria-valuemin={minimumQuestion} aria-valuemax={areaHeight-minimumDraft-10} aria-valuenow={questionHeight} tabIndex={0} onPointerDown={resizeQuestion} onDoubleClick={()=>setAutoLayout(true)} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAutoLayout(false);setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(areaHeight-minimumDraft-10,height+(e.key==='ArrowUp'?-24:24))));}if(e.key==='Home'){e.preventDefault();setAutoLayout(true);}}}><span/></div>

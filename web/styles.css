@@ -45,6 +45,14 @@
 .practice-app .question-text .rich-text{font-size:16px;color:#222;line-height:1.85}
 .question-images{display:flex;flex-direction:column;gap:6px}
 .practice-app .question-image{display:block;width:100%;height:auto;max-height:none;object-fit:contain;margin:0;border:0;border-radius:0}
+.practice-app .fit-question-images{overflow:hidden}
+.fit-question-images .question-content{height:100%;min-height:0;display:flex;flex-direction:column}
+.fit-question-images .question-context{flex-shrink:0;max-height:35%;overflow:auto}
+.question-images.fitted-images{flex:1;min-height:0;align-items:center;justify-content:center}
+.fitted-images>a{display:block;flex:none;line-height:0}
+.practice-app .question-image-toggle{font-size:11px;white-space:nowrap}
+.question-image-errors{flex-shrink:0;max-height:25%;overflow:auto;font-size:11px}
+.question-image-errors>a{display:block}
 .question-draft-divider{flex:0 0 10px;cursor:row-resize;touch-action:none;display:flex;align-items:center;justify-content:center;background:#f7f7f7}
 .question-draft-divider span{width:68px;height:3px;background:#aaa;border-radius:2px}
 .question-draft-divider:hover,.question-draft-divider:focus-visible{background:#e8e8e8;outline:1px solid #999}

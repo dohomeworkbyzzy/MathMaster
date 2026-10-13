@@ -17,17 +17,17 @@
 
 源码版触控板定位：开启「触控板书写」，把外接鼠标移到电子草稿上的目标位置，确认「落笔范围」框后用单指书写；移动鼠标会把这组笔迹缩放落入原来选定的框，并选择下一处位置。鼠标在草稿外时暂停落笔。放大书写区和落笔范围大小可分别调整。
 
-v0.3.0 已加入原版、VS Code、Word、Excel 界面风格；小窗口优先显示题目与草稿，笔记/答案和计算器可按需展开，输入内容保留。书写背景与笔迹跟随系统深浅色或当前皮肤；原始题图保持原样。
+v0.3.1 支持题图按题目区宽度和高度等比例缩小，多张截图一起完整显示；拖动分隔线时自动适应，点击「放大题图」或题图本身可查看细节。v0.3.0 已加入原版、VS Code、Word、Excel 界面风格；小窗口优先显示题目与草稿，笔记/答案和计算器可按需展开，输入内容保留。书写背景与笔迹跟随系统深浅色或当前皮肤；原始题图保持原样。
 
 ## 快速开始
 
-**Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.3.0-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
+**Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.3.1-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
 
 安装版适用于 Windows 10/11 x64，自带 Python、SymPy 和前端，不需要另外安装 Python、Node.js 或联网下载依赖。安装到当前用户目录，无需管理员权限。题库和记录在 `%LOCALAPPDATA%\MathMaster\data`，升级和卸载保留数据。任务栏托盘菜单可以打开界面、打开数据文件夹或退出本地服务。
 
 安装包目前未进行代码签名，Windows 可能提示未知发布者。请从本仓库 Releases 下载，并核对配套 SHA256 校验文件。扫描件 OCR、DOCX 原版式转换仍分别需要可选的 Tesseract 和 LibreOffice。
 
-源码运行需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**；首次安装依赖需要联网。也可下载 `MathMaster-0.3.0-local.zip`，它包含已构建前端，仅需 Python，无需 Node.js。
+源码运行需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**；首次安装依赖需要联网。也可下载 `MathMaster-0.3.1-local.zip`，它包含已构建前端，仅需 Python，无需 Node.js。
 
 ### Windows 源码 / ZIP 运行
 
