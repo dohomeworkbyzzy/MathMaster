@@ -28,7 +28,7 @@ test('skins preserve live notes, answers and ink; cover restores the same worksp
  await page.screenshot({path:'docs/screenshots/skin-cover.png'});
  await page.keyboard.press('F8');await expect(page.getByRole('dialog',{name:'工作报告',exact:true})).toHaveCount(0);
  await expect(page.getByLabel('解题笔记',{exact:true})).toHaveValue('F8 前尚在编辑的笔记');
- await expect.poll(async()=>{const q=await (await request.get('/api/questions/'+id)).json();return [q.attempt.notes,q.attempt.answer,JSON.parse(q.attempt.draft).length];}).toEqual(['F8 前尚在编辑的笔记','保留答案',1]);
+ await expect.poll(async()=>{const q=await (await request.get('/api/questions/'+id)).json();return [q.attempt?.notes,q.attempt?.answer,JSON.parse(q.attempt?.draft||'[]').length];}).toEqual(['F8 前尚在编辑的笔记','保留答案',1]);
  await page.getByRole('button',{name:'返回题库'}).click();await page.reload();
  await expect(page.locator('.app')).toHaveClass(/skin-sheet/);await expect(page).toHaveTitle('数据分析工作簿.xlsx - Excel');
  await choose(page,'原版');await expect(page.getByRole('heading',{name:'数学计算工作台'})).toBeVisible();
