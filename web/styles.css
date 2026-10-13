@@ -108,4 +108,43 @@
 .touchpad-controls{max-width:calc(100vw - 16px);width:max-content;flex-wrap:wrap;justify-content:center;gap:8px 12px}
 .touchpad-controls input[type=range]{width:110px;padding:0;accent-color:#555}.touchpad-controls output{font-size:10px;min-width:35px}
 .window-control{font-size:12px;padding:5px 8px;border:1px solid #ddd;border-radius:3px;white-space:nowrap}
+/* Paper and ink tokens reach both canvases and portalled writing previews. */
+:root{--workspace-paper:#fff;--workspace-ink:#333;--workspace-border:#ccc;--workspace-soft:#f5f6f5;--workspace-accent:#317959;--workspace-muted:#52645a;--workspace-overlay:#ffffff18;color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-skin]),:root[data-skin=original]{--workspace-paper:#242628;--workspace-ink:#e5e7e9;--workspace-border:#555b60;--workspace-soft:#303438;--workspace-accent:#8dcba5;--workspace-muted:#b5bfc0;--workspace-overlay:#00000018;color-scheme:dark}}
+:root[data-skin=code]{--workspace-paper:#1e1e1e;--workspace-ink:#d4d4d4;--workspace-border:#444;--workspace-soft:#252526;--workspace-accent:#72bcff;--workspace-muted:#b6b6b6;--workspace-overlay:#00000018;color-scheme:dark}
+:root[data-skin=word]{--workspace-accent:#2b579a}
+:root[data-skin=sheet]{--workspace-accent:#217346}
+.practice-app .sketch canvas,.practice-app .sketch-paper,.question-images{background:var(--workspace-paper)}
+.practice-app .question-pane,.practice-app .notes-pane,.practice-app .draft-tools{background:var(--workspace-paper);color:var(--workspace-ink);border-color:var(--workspace-border)}
+.practice-app .question-text .rich-text,.practice-app .notes-pane .pane-heading>span,.practice-app .sketch .section-heading,.practice-app .draft-tools label{color:var(--workspace-ink)}
+.practice-app .notes-editor,.practice-app .question-answer textarea{background:var(--workspace-paper);color:var(--workspace-ink);border-color:var(--workspace-border)}
+.touchpad-overlay{background:var(--workspace-overlay)}
+.touchpad-controls,.touchpad-controls select{background:var(--workspace-paper);color:var(--workspace-ink);border-color:var(--workspace-border)}
+.touchpad-controls label{color:var(--workspace-ink)}
+.touchpad-writing{background:var(--workspace-paper);color:var(--workspace-ink);border-color:var(--workspace-border)}
+.touchpad-stamp{color:var(--workspace-ink)}.touchpad-center{stroke:var(--workspace-border)}
+.touchpad-target{border-color:var(--workspace-accent);background:transparent}.touchpad-target span{background:var(--workspace-accent);color:var(--workspace-paper)}
+.touchpad-location-status{color:var(--workspace-muted)}
+/* Compact practice preserves mounted editors but gives their space to paper. */
+.compact-practice .draft-body{grid-template-columns:minmax(0,1fr);position:relative}
+.compact-practice .draft-tools{position:absolute;right:0;top:0;bottom:0;width:min(340px,90%);z-index:45;border:1px solid var(--workspace-border);padding:10px;box-shadow:0 4px 18px #0002}
+.compact-practice .compact-hidden{display:none}
+.close-notes{display:flex;margin-left:auto}
+@media(max-width:900px),(max-height:680px){
+ .practice-app{padding-bottom:0!important}
+ .practice-app .sidebar{display:none!important}.practice-app .main{margin-left:0!important}
+ .practice-app .topbar{height:36px!important;padding:0 8px!important}.practice-app .breadcrumbs>span,.practice-app .offline-label,.practice-app .engine-status,.practice-app .avatar{display:none!important}
+ .practice-app :is(.code-menubar,.code-filetab,.office-ribbon,.document-ruler,.sheet-formula,.skin-status){display:none}
+ .practice-app .practice-bar{padding:3px 6px;gap:6px;min-height:34px;flex-wrap:wrap}
+ .practice-app .practice-tools{gap:4px}.practice-app .practice-title>span:last-child{display:none}
+ .practice-app .practice-tools .small{font-size:10px;padding:5px 6px}.practice-app .save-status{font-size:10px}
+ .practice-app .compact-practice.practice-panes{padding:3px 5px;gap:4px;flex-direction:row}
+ .practice-app .compact-practice .question-content{padding:0 6px 4px}
+ .practice-app .compact-practice .pane-heading{min-height:24px;height:24px;margin-bottom:3px;font-size:11px}
+ .practice-app .compact-practice .question-pane .pane-heading>div{display:none}
+ .practice-app .compact-practice .notes-pane{padding:0 5px 4px}
+ .practice-app .compact-practice .sketch .section-heading{height:24px;font-size:10px}
+ .practice-app .compact-practice .calculator-pane{position:fixed;right:5px;top:72px;bottom:5px;max-height:none;width:min(340px,90vw);max-width:90vw;background:var(--workspace-paper);z-index:50;border:1px solid var(--workspace-border);box-shadow:0 4px 18px #0003}
+ .practice-app .compact-practice>.pane-divider{display:none}
+}
 @media(max-width:760px){.topbar,.practice-app .topbar{padding:0 8px;height:48px}.topbar-right{gap:6px}.topbar-right .engine-status,.topbar-right .offline-label,.topbar-right .avatar{display:none}.breadcrumbs>span,.breadcrumbs>.lucide-chevron-right{display:none}.main-content{padding:12px}.page-heading{margin-bottom:12px}.page-heading h1{font-size:18px}.practice-app .practice-bar{padding:4px 8px}.practice-app .calculator-pane{top:88px}.touchpad-controls{font-size:11px;gap:6px}.touchpad-controls input[type=range]{width:80px}}

@@ -1,6 +1,8 @@
 # Windows 安装版
 
-普通使用者推荐下载 [GitHub Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 中的 **MathMaster-Setup-0.2.0-x64.exe**。这是安装程序，不需要另装 Python、Node.js 或在首次启动时下载依赖。
+普通使用者推荐下载 [GitHub Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 中的 **MathMaster-Setup-0.3.0-x64.exe**。这是安装程序，不需要另装 Python、Node.js 或在首次启动时下载依赖。
+
+v0.3.0 增加小窗口题目/草稿优先布局、背景配色和 TouchDeck 手机书写。使用安装版前先退出旧 `start.bat` 启动的服务，以免两份服务争用端口。手机 APK、配对及黑屏操作见 [手机黑屏草稿使用说明](手机黑屏草稿使用说明.md)。
 
 ## 安装和启动
 
@@ -14,7 +16,7 @@
 安装包尚未进行代码签名，Windows 可能提示未知发布者。请只从上述仓库下载，可用 PowerShell 核对同页的 `.exe.sha256`：
 
 ```powershell
-Get-FileHash .\MathMaster-Setup-0.2.0-x64.exe -Algorithm SHA256
+Get-FileHash .\MathMaster-Setup-0.3.0-x64.exe -Algorithm SHA256
 ```
 
 ## 托盘和退出

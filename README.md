@@ -17,17 +17,17 @@
 
 源码版触控板定位：开启「触控板书写」，把外接鼠标移到电子草稿上的目标位置，确认「落笔范围」框后用单指书写；移动鼠标会把这组笔迹缩放落入原来选定的框，并选择下一处位置。鼠标在草稿外时暂停落笔。放大书写区和落笔范围大小可分别调整。
 
-界面皮肤切换计划在下一版本发布，尚未包含在当前 v0.2.0 安装版中。
+v0.3.0 已加入原版、VS Code、Word、Excel 界面风格；小窗口优先显示题目与草稿，笔记/答案和计算器可按需展开，输入内容保留。书写背景与笔迹跟随系统深浅色或当前皮肤；原始题图保持原样。
 
 ## 快速开始
 
-**Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.2.0-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
+**Windows 用户推荐安装版**：从 [Releases](https://github.com/dohomeworkbyzzy/MathMaster/releases) 下载 **MathMaster-Setup-0.3.0-x64.exe**，双击安装，再从桌面或开始菜单打开 MathMaster。
 
 安装版适用于 Windows 10/11 x64，自带 Python、SymPy 和前端，不需要另外安装 Python、Node.js 或联网下载依赖。安装到当前用户目录，无需管理员权限。题库和记录在 `%LOCALAPPDATA%\MathMaster\data`，升级和卸载保留数据。任务栏托盘菜单可以打开界面、打开数据文件夹或退出本地服务。
 
 安装包目前未进行代码签名，Windows 可能提示未知发布者。请从本仓库 Releases 下载，并核对配套 SHA256 校验文件。扫描件 OCR、DOCX 原版式转换仍分别需要可选的 Tesseract 和 LibreOffice。
 
-源码运行需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**；首次安装依赖需要联网。也可下载 `MathMaster-0.2.0-local.zip`，它包含已构建前端，仅需 Python，无需 Node.js。
+源码运行需要 **Python 3.11+**（建议 3.13）与 **Node.js 22.12+**；首次安装依赖需要联网。也可下载 `MathMaster-0.3.0-local.zip`，它包含已构建前端，仅需 Python，无需 Node.js。
 
 ### Windows 源码 / ZIP 运行
 
@@ -118,3 +118,16 @@ npm run build
 ## 关键词
 
 考研数学 / Kaoyan math · 做题 / Math practice · 学习 / Learning · 错题本 / Mistake notebook · 电子草稿 / Digital scratchpad · 离线学习 / Offline study。
+
+### TouchDeck 手机草稿书写
+
+用本源码目录的 `start.bat` 启动，进入题目练习的电子草稿，点「手机书写」。
+页面显示电脑 IP 和本次 6 位配对码。在 TouchDeck 0.2.2 的「连接 → MathMaster 手机草稿」填写后，手机成为整块绝对坐标书写板。
+外接鼠标在电脑草稿上选择落笔框，手机全区域与此框等比对应，笔迹直接显示在落笔框内。默认范围为「草稿整宽」，也可改为宽范围或小范围；范围受可见草稿区高度约束，可先拖动题目与草稿分隔线扩大草稿。
+鼠标移动或手机点「收笔 / 换位置」将笔迹写入题目草稿，沿用原来的保存、撤销与清空。手机横竖屏切换会结束旧笔画并更新宽高比。
+
+两端需在同一局域网，书写端口为 TCP 8766；首次网络访问提示允许专用网络。此端口只处理配对和笔迹，题库等 API 仍只接受本机访问。浏览器关闭书写模式或离开页面会结束配对会话，重开后使用新码。v0.3.0 安装版已经包含此功能。
+
+配套手机测试版下载、黑屏操作的实际含义及许可说明，请阅读 [手机黑屏草稿使用说明](docs/手机黑屏草稿使用说明.md)。APK 是纯黑画面和最低窗口亮度下的触摸操作，不是系统锁屏后手写。版本变化见 [更新记录](CHANGELOG.md)。
+
+![小窗口优先显示题目与草稿](docs/screenshots/compact-practice.png)

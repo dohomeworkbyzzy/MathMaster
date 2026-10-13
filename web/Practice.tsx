@@ -16,7 +16,9 @@ function Sketch({value,onChange}:{value:string;onChange:(s:string)=>void}){
  const strokes=useRef(parsed);strokes.current=parsed;
  let logicalHeight=450;for(const stroke of parsed)for(const point of stroke)logicalHeight=Math.max(logicalHeight,point.y+12);
  const canvasHeight=Math.ceil(Math.max(logicalHeight,paperSize.height*800/Math.max(1,paperSize.width)));
- function draw(extra:Stroke=[]){const el=canvas.current;const ctx=el?.getContext('2d');if(!el||!ctx)return;ctx.clearRect(0,0,800,el.height);ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';for(const line of [...strokes.current,extra]){if(line.length===0)continue;ctx.beginPath();ctx.moveTo(line[0].x,line[0].y);if(line.length===1)ctx.lineTo(line[0].x+0.2,line[0].y+0.2);for(const p of line.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();}}
+ function draw(extra:Stroke=[]){const el=canvas.current;const ctx=el?.getContext('2d');if(!el||!ctx)return;ctx.clearRect(0,0,800,el.height);ctx.strokeStyle=getComputedStyle(el).getPropertyValue('--workspace-ink').trim()||'#333';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';for(const line of [...strokes.current,extra]){if(line.length===0)continue;ctx.beginPath();ctx.moveTo(line[0].x,line[0].y);if(line.length===1)ctx.lineTo(line[0].x+0.2,line[0].y+0.2);for(const p of line.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();}}
+ const redraw=useRef(draw);redraw.current=draw;
+ useEffect(()=>{const changed=()=>requestAnimationFrame(()=>redraw.current(drawing.current));const observer=new MutationObserver(changed);observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-skin']});const scheme=matchMedia('(prefers-color-scheme: dark)');scheme.addEventListener('change',changed);return()=>{observer.disconnect();scheme.removeEventListener('change',changed);};},[]);
  useEffect(()=>{const element=paper.current;if(!element)return;const observer=new ResizeObserver(()=>setPaperSize({width:element.clientWidth,height:element.clientHeight}));observer.observe(element);return()=>observer.disconnect();},[]);
  useEffect(()=>{draw();},[value,canvasHeight]);
  function point(e:React.PointerEvent<HTMLCanvasElement>){const r=e.currentTarget.getBoundingClientRect();return {x:(e.clientX-r.left)*800/r.width,y:(e.clientY-r.top)*e.currentTarget.height/r.height};}
@@ -86,28 +88,35 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  const [autoLayout,setAutoLayout]=useState(true);const [questionHeight,setQuestionHeight]=useState(240);
  const [manualAreaHeight,setManualAreaHeight]=useState(0);
  const [availableHeight,setAvailableHeight]=useState(650);const [calculatorWidth,setCalculatorWidth]=useState(340);
+ const [compact,setCompact]=useState(()=>window.innerWidth<=900||window.innerHeight<=680);
+ const [notesOpen,setNotesOpen]=useState(false),[compactCalc,setCompactCalc]=useState(false);
+ useEffect(()=>{const resize=()=>setCompact(window.innerWidth<=900||window.innerHeight<=680);window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[]);
+ useEffect(()=>{if(compact)window.scrollTo({top:0,left:0,behavior:'auto'});},[compact]);
+ const calcHidden=collapsed||(compact&&!compactCalc);
  const panes=useRef<HTMLDivElement>(null);const questionContent=useRef<HTMLDivElement>(null);
  const [floatPos,setFloatPos]=useState({x:Math.max(20,window.innerWidth-530),y:110});
- const minimumDraft=210;
+ const minimumDraft=compact?Math.min(210,Math.max(160,Math.floor(window.innerHeight*.46)),Math.max(100,availableHeight-120)):210;
+ const minimumQuestion=compact?96:140;
+ const areaHeight=compact?availableHeight:Math.max(availableHeight,manualAreaHeight,questionHeight+minimumDraft+10);
  useEffect(()=>{
   const area=panes.current,content=questionContent.current;if(!area||!content)return;
   const measure=()=>{
-   const available=Math.max(410,window.innerHeight-area.getBoundingClientRect().top-window.scrollY-12);
+   const available=Math.max(compact?260:410,window.innerHeight-area.getBoundingClientRect().top-(compact?0:window.scrollY)-12);
    setAvailableHeight(available);
-   if(autoLayout)setQuestionHeight(Math.max(140,Math.ceil(content.getBoundingClientRect().height)+2));
-   else setQuestionHeight(height=>Math.max(140,Math.min(height,Math.max(available,manualAreaHeight)-minimumDraft-10)));
+   if(autoLayout)setQuestionHeight(Math.max(minimumQuestion,Math.min(Math.ceil(content.getBoundingClientRect().height)+2,compact?Math.min(available-minimumDraft-10,available*.5):Infinity)));
+   else setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(height,(compact?available:Math.max(available,manualAreaHeight))-minimumDraft-10)));
   };
   const observer=new ResizeObserver(measure);observer.observe(content);observer.observe(area);
   window.addEventListener('resize',measure);measure();
   return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
- },[autoLayout,manualAreaHeight]);
+ },[autoLayout,manualAreaHeight,compact,minimumQuestion,minimumDraft]);
  useEffect(()=>{registerFlush(flush);return()=>registerFlush(null);},[flush]);
  function resizeQuestion(e:React.PointerEvent<HTMLDivElement>){
   e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setAutoLayout(false);
-  const start=e.clientY,initial=questionHeight,areaHeight=Math.max(availableHeight,questionHeight+minimumDraft+10);
+  const start=e.clientY,initial=questionHeight;
   setManualAreaHeight(areaHeight);
   const element=e.currentTarget;
-  const move=(event:PointerEvent)=>setQuestionHeight(Math.max(140,Math.min(areaHeight-minimumDraft-10,initial+event.clientY-start)));
+  const move=(event:PointerEvent)=>setQuestionHeight(Math.max(minimumQuestion,Math.min(areaHeight-minimumDraft-10,initial+event.clientY-start)));
   const end=()=>{element.removeEventListener('pointermove',move);element.removeEventListener('pointerup',end);element.removeEventListener('pointercancel',end);};
   element.addEventListener('pointermove',move);element.addEventListener('pointerup',end);element.addEventListener('pointercancel',end);
  }
@@ -121,8 +130,8 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  function dragFloat(e:React.PointerEvent){if((e.target as HTMLElement).closest('button'))return;const sx=e.clientX,sy=e.clientY,start={...floatPos};const move=(ev:PointerEvent)=>setFloatPos({x:Math.min(window.innerWidth-200,Math.max(0,start.x+ev.clientX-sx)),y:Math.min(window.innerHeight-60,Math.max(0,start.y+ev.clientY-sy))});const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);}
  async function insert(result:Result){try{await api('/api/questions/'+question.id+'/calculations/'+result.history_id,json({}));const h=await api<Question>('/api/questions/'+question.id);setCalculations(h.calculations||[]);notify('已将结果和完整步骤插入本题笔记');}catch(e){notify((e as Error).message);}}
  function exportNotes(){function lines(steps:Result['steps']):string{return steps.map(st=>`${st.explanation_zh}\n\n$$${st.before_latex}$$\n\n$$${st.after_latex}$$\n\n${lines(st.children)}`).join('\n');}const content=`# 第 ${question.number} 题\n\n${question.text}\n\n## 我的答案\n\n${attempt.answer}\n\n## 解题笔记\n\n${attempt.notes}\n\n`+calculations.map(h=>`## ${h.result.method}\n\n$$${h.result.input_latex}$$\n\n$$${h.result.result_latex}$$\n\n${lines(h.result.steps)}\n条件：${h.result.assumptions.join('；')}\n提示：${h.result.warnings.join('；')}`).join('\n');const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='MathMaster-解题笔记.md';a.click();URL.revokeObjectURL(url);}
- return <><div className="practice-bar"><button className="text-button" onClick={onBack}><ArrowLeft size={15}/>返回题库</button><div className="practice-title"><span className="subject-tag">{question.subject}</span><b>第 {question.number} 题</b><span>{question.paper_title||'本地题库'}</span></div><div className="practice-tools"><span className="save-status"><Save size={13}/>{saveState}</span><button className="secondary small" aria-pressed={autoLayout} onClick={()=>{setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setAutoLayout(value=>!value);}}>{autoLayout?'自动调节：开':'自动调节：关'}</button><button className="secondary small" onClick={()=>onNext(-1)}>上一题</button><button className="secondary small" onClick={()=>onNext(1)}>下一题</button>{collapsed&&<button className="secondary small" onClick={()=>setCollapsed(false)}>展开计算器</button>}</div></div>
- <div className="practice-panes" ref={panes} style={{height:autoLayout?Math.max(availableHeight,questionHeight+minimumDraft+10):Math.max(availableHeight,manualAreaHeight)}}>
+ return <><div className={"practice-bar"+(compact?" compact-practice":"")}><button className="text-button" onClick={onBack}><ArrowLeft size={15}/>返回题库</button><div className="practice-title"><span className="subject-tag">{question.subject}</span><b>第 {question.number} 题</b><span>{question.paper_title||'本地题库'}</span></div><div className="practice-tools"><span className="save-status"><Save size={13}/>{saveState}</span><button className="secondary small" aria-pressed={autoLayout} onClick={()=>{setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setAutoLayout(value=>!value);}}>{autoLayout?'自动调节：开':'自动调节：关'}</button><button className="secondary small" onClick={()=>onNext(-1)}>上一题</button><button className="secondary small" onClick={()=>onNext(1)}>下一题</button>{compact&&<button className="secondary small" aria-pressed={notesOpen} onClick={()=>setNotesOpen(v=>!v)}>笔记与答案</button>}{calcHidden&&<button className="secondary small" onClick={()=>{setCollapsed(false);setCompactCalc(true);}}>展开计算器</button>}</div></div>
+ <div className={"practice-panes"+(compact?" compact-practice":"")} ref={panes} style={{height:areaHeight}}>
  <div className="practice-stack">
   <section className="question-pane pane" aria-label="题目区" style={{height:questionHeight}}>
    <div className="question-content" ref={questionContent}>
@@ -131,19 +140,19 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
     <div className="question-images">{question.images.map((src,i)=><a href={'/api/files/'+src} target="_blank" key={src} rel="noreferrer"><img className="question-image" src={'/api/files/'+src} alt={`题目原始截图 ${i+1}`}/></a>)}</div>
    </div>
   </section>
-  <div className="question-draft-divider" role="separator" aria-label="调整题目与草稿高度" aria-orientation="horizontal" aria-valuemin={140} aria-valuemax={Math.max(availableHeight,questionHeight+minimumDraft+10)-minimumDraft-10} aria-valuenow={questionHeight} tabIndex={0} onPointerDown={resizeQuestion} onDoubleClick={()=>setAutoLayout(true)} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAutoLayout(false);setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setQuestionHeight(height=>Math.max(140,Math.min(Math.max(availableHeight,manualAreaHeight,questionHeight+minimumDraft+10)-minimumDraft-10,height+(e.key==='ArrowUp'?-24:24))));}if(e.key==='Home'){e.preventDefault();setAutoLayout(true);}}}><span/></div>
-  <section className="notes-pane pane" aria-label="草稿区">
+  <div className="question-draft-divider" role="separator" aria-label="调整题目与草稿高度" aria-orientation="horizontal" aria-valuemin={minimumQuestion} aria-valuemax={areaHeight-minimumDraft-10} aria-valuenow={questionHeight} tabIndex={0} onPointerDown={resizeQuestion} onDoubleClick={()=>setAutoLayout(true)} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAutoLayout(false);setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(areaHeight-minimumDraft-10,height+(e.key==='ArrowUp'?-24:24))));}if(e.key==='Home'){e.preventDefault();setAutoLayout(true);}}}><span/></div>
+  <section className="notes-pane pane" aria-label="草稿区" style={compact?{minHeight:minimumDraft}:undefined}>
    <div className="pane-heading"><span>草稿与笔记</span><div><button className="text-button" onClick={()=>setNotePreview(v=>!v)}>{notePreview?'编辑笔记':'预览笔记'}</button><button className="text-button" onClick={exportNotes}>导出</button></div></div>
    {recovery&&<div className="warnings"><p>发现未同步草稿，但数据库已有新版本。已保留当前记录，未自动覆盖。</p><p>旧笔记：{recovery.notes.slice(0,160)||'（空）'}</p><button className="text-button" onClick={downloadRecovery}>下载未同步草稿</button><button className="text-button" onClick={restoreRecovery}>将旧草稿加载到编辑器</button></div>}
-   <div className="draft-body"><Sketch value={attempt.draft} onChange={draft=>update({draft})}/><div className="draft-tools"><label className="field-label">解题笔记</label>{notePreview?<RichText text={attempt.notes||'还没有笔记。'}/>:<textarea className="notes-editor" aria-label="解题笔记" placeholder="记录解题思路，支持 $LaTeX$" value={attempt.notes} onChange={e=>update({notes:e.target.value})}/>}
+   <div className="draft-body"><Sketch value={attempt.draft} onChange={draft=>update({draft})}/><div className={"draft-tools"+(compact&&!notesOpen?" compact-hidden":"")}>{compact&&<button className="text-button close-notes" onClick={()=>setNotesOpen(false)}>收起笔记 <X size={14}/></button>}<label className="field-label">解题笔记</label>{notePreview?<RichText text={attempt.notes||'还没有笔记。'}/>:<textarea className="notes-editor" aria-label="解题笔记" placeholder="记录解题思路，支持 $LaTeX$" value={attempt.notes} onChange={e=>update({notes:e.target.value})}/>}
     <div className="question-answer"><label className="field-label">我的答案<textarea value={attempt.answer} aria-label="我的答案" placeholder="最终答案" onChange={e=>update({answer:e.target.value,status:'作答中'})}/></label><div className="answer-tools"><button className={'secondary small '+(attempt.wrong?'wrong-selected':'')} onClick={()=>update({wrong:!attempt.wrong})}>{attempt.wrong?'已加入错题本':'加入错题本'}</button><button className={'primary small '+(attempt.status==='已完成'?'completed':'')} onClick={()=>update({status:attempt.status==='已完成'?'作答中':'已完成'})}><CheckCircle2 size={14}/>{attempt.status==='已完成'?'已完成':'完成本题'}</button></div><button className="text-button" onClick={()=>setReference(value=>!value)}>{reference?'收起':'查看'}参考答案</button>{reference&&<RichText text={question.reference_answer||'本题尚未录入参考答案，可在编辑题目中添加。'}/>}</div>
     {calculations.length>0&&<div className="note-calculations"><div className="section-heading"><b>已插入的计算推导</b><small>{calculations.length} 条</small></div>{calculations.map(h=><ResultView result={h.result} key={h.id} notify={notify}/>)}</div>}
    </div></div>
   </section>
  </div>
- {!collapsed&&!floating&&!fullscreen&&<div className="pane-divider" role="separator" aria-label="调整计算器宽度" onPointerDown={resizeCalculator}/>}
- <div className={(fullscreen?'fullscreen-calc':floating?'floating-calc':'calculator-pane')+(collapsed?' hidden':'')} style={floating&&!fullscreen?{left:floatPos.x,top:floatPos.y}:!fullscreen?{flexBasis:calculatorWidth}:{}}>{(floating||fullscreen)&&<div className="float-handle" onPointerDown={dragFloat}><span>{fullscreen?'全屏计算工作台':'拖动标题可移动计算器'}</span><button className="text-button" onClick={()=>{setFloating(false);setFullscreen(false);}}>返回工作台 <X size={15}/></button></div>}<Calculator questionId={question.id} compact={!fullscreen} send={send} notify={notify} onInsert={insert} onCollapse={()=>setCollapsed(true)} onFloat={()=>{setFloating(value=>!value);setFullscreen(false);}} onFullscreen={()=>setFullscreen(value=>!value)}/></div>
+ {!calcHidden&&!floating&&!fullscreen&&<div className="pane-divider" role="separator" aria-label="调整计算器宽度" onPointerDown={resizeCalculator}/>}
+ <div className={(fullscreen?'fullscreen-calc':floating?'floating-calc':'calculator-pane')+(calcHidden?' hidden':'')} style={floating&&!fullscreen?{left:floatPos.x,top:floatPos.y}:!fullscreen?{flexBasis:calculatorWidth}:{}}>{(floating||fullscreen)&&<div className="float-handle" onPointerDown={dragFloat}><span>{fullscreen?'全屏计算工作台':'拖动标题可移动计算器'}</span><button className="text-button" onClick={()=>{setFloating(false);setFullscreen(false);}}>返回工作台 <X size={15}/></button></div>}<Calculator questionId={question.id} compact={!fullscreen} send={send} notify={notify} onInsert={insert} onCollapse={()=>{setCollapsed(true);setCompactCalc(false);}} onFloat={()=>{setFloating(value=>!value);setFullscreen(false);}} onFullscreen={()=>setFullscreen(value=>!value)}/></div>
  </div>
- {selection!==null&&<div className="modal-backdrop"><div className="modal"><div className="modal-heading"><h3>确认数学表达式</h3><button className="icon-button" onClick={()=>setSelection(null)}><X size={18}/></button></div><p className="muted">题目文字或 OCR 可能识别错误。请确认表达式完整、公式准确，再发送到计算器。</p><textarea aria-label="确认数学表达式" value={selection} onChange={e=>setSelection(e.target.value)} placeholder="例如 2x/(x^2+1)"/><div className="modal-actions"><button className="secondary" onClick={()=>setSelection(null)}>取消</button><button className="primary" disabled={!selection.trim()} onClick={()=>{setSend(selection);setCollapsed(false);setSelection(null);}}>确认并填入计算器 <ArrowRight size={15}/></button></div></div></div>}
+ {selection!==null&&<div className="modal-backdrop"><div className="modal"><div className="modal-heading"><h3>确认数学表达式</h3><button className="icon-button" onClick={()=>setSelection(null)}><X size={18}/></button></div><p className="muted">题目文字或 OCR 可能识别错误。请确认表达式完整、公式准确，再发送到计算器。</p><textarea aria-label="确认数学表达式" value={selection} onChange={e=>setSelection(e.target.value)} placeholder="例如 2x/(x^2+1)"/><div className="modal-actions"><button className="secondary" onClick={()=>setSelection(null)}>取消</button><button className="primary" disabled={!selection.trim()} onClick={()=>{setSend(selection);setCollapsed(false);setCompactCalc(true);setSelection(null);}}>确认并填入计算器 <ArrowRight size={15}/></button></div></div></div>}
  </>;
 }

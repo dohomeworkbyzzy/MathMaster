@@ -1,7 +1,8 @@
 import {test,expect as baseExpect} from '@playwright/test';
 const expect=baseExpect.configure({timeout:20000});
 
-test('offline mathfield, integral, derivative, matrix and history',async({page})=>{
+test('offline mathfield, integral, derivative, matrix and history',async({page,request})=>{
+ const previousHistory=(await (await request.get('/api/math/history?workspace=true&limit=30')).json()).length;
  const external:string[]=[];const errors:string[]=[];
  await page.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:8767')&&!route.request().url().startsWith('data:')){external.push(route.request().url());return route.abort();}return route.continue();});
  page.on('pageerror',e=>errors.push(e.message));
@@ -13,7 +14,7 @@ test('offline mathfield, integral, derivative, matrix and history',async({page})
  await page.getByRole('button',{name:'求导',exact:true}).click();await page.getByRole('button',{name:'文本表达式',exact:true}).click();await page.getByLabel('文本表达式',{exact:true}).fill('sin(x^2)');
  await page.getByRole('button',{name:'开始计算',exact:true}).click();await expect(page.locator('.answer-box')).toContainText('cos');await expect(page.locator('.step summary').filter({hasText:'链式法则'})).toBeVisible();
  await page.getByRole('button',{name:'矩阵',exact:true}).click();await page.getByLabel('矩阵运算方式').selectOption('inverse');await page.getByRole('button',{name:'开始计算',exact:true}).click();await expect(page.locator('.answer-box')).toContainText('2');await expect(page.locator('.step summary').filter({hasText:'逆矩阵验证'})).toBeVisible();
- await page.getByRole('button',{name:'计算历史',exact:true}).click();await expect(page.locator('.history-item')).toHaveCount(3);
+ await page.getByRole('button',{name:'计算历史',exact:true}).click();await expect(page.locator('.history-item')).toHaveCount(Math.min(30,previousHistory+3));
  await page.screenshot({path:'docs/workspace-history.png',fullPage:true});
  expect(external).toEqual([]);expect(errors).toEqual([]);
 });

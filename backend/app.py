@@ -22,6 +22,7 @@ from . import db
 from .jobs import run_job, JobError, ROOT
 from .runtime import worker_command
 from .touchpad import bridge as touchpad_bridge, status as touchpad_status
+from .phonepad import bridge as phonepad_bridge
 
 
 def now():return datetime.now(timezone.utc).isoformat()
@@ -38,8 +39,9 @@ async def lifespan(app):
         yield
     finally:
         touchpad_bridge.stop()
+        phonepad_bridge.stop()
 
-app=FastAPI(title='MathMaster 本地 API',version='0.1.0',lifespan=lifespan)
+app=FastAPI(title='MathMaster 本地 API',version='0.3.0',lifespan=lifespan)
 
 @app.middleware('http')
 async def local_only(request:Request,call_next):
@@ -106,6 +108,40 @@ def health():
 
 @app.get('/api/touchpad/status')
 def touchpad_info():return touchpad_status()
+
+@app.post('/api/phonepad/start')
+def phonepad_start():
+    try:return phonepad_bridge.start()
+    except ValueError as e:raise HTTPException(422,str(e))
+
+@app.post('/api/phonepad/stop')
+def phonepad_stop(body:dict):
+    token=body.get('token')
+    if not isinstance(token,str) or len(token)<20:raise HTTPException(422,'无效会话')
+    try:phonepad_bridge.stop(token)
+    except ValueError as e:raise HTTPException(403,str(e))
+    return {'stopped':True}
+
+@app.get('/api/phonepad/events')
+def phonepad_events(token:str):
+    try:session=phonepad_bridge.get(token)
+    except ValueError as e:raise HTTPException(403,str(e))
+    return StreamingResponse(phonepad_bridge.events(session),media_type='text/event-stream',headers={'Cache-Control':'no-cache'})
+
+class PhonepadControl(BaseModel):
+    token:str=Field(min_length=20,max_length=100)
+    selected:bool|None=None
+    reset:bool=False
+
+@app.post('/api/phonepad/control')
+def phonepad_control(body:PhonepadControl):
+    try:session=phonepad_bridge.get(body.token)
+    except ValueError as e:raise HTTPException(403,str(e))
+    with phonepad_bridge.lock:
+        session.control={**session.control,
+                         'selected':session.control['selected'] if body.selected is None else body.selected,
+                         'reset':session.control['reset']+int(body.reset)}
+    return {'ok':True}
 
 class WindowMode(BaseModel):
     mode:Literal['compact','restore','minimize']

@@ -1,6 +1,7 @@
 sympy==1.14.0
 fastapi==0.143.0
 uvicorn==0.54.0
+websockets==15.0.1
 python-multipart>=0.0.20,<1
 pymupdf>=1.26,<2
 python-docx>=1.2,<2

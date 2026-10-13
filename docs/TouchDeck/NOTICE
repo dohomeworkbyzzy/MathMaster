@@ -1,0 +1,52 @@
+TouchDeck
+Copyright 2026 TouchDeck contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+--------------------------------------------------------------------
+Third-party attribution
+--------------------------------------------------------------------
+
+KeysJoy  (https://github.com/iFeel-is-a-mouse/KeysJoy), Apache License 2.0
+
+This project does NOT contain source code copied from KeysJoy. Its
+repository was read while implementing the Android Bluetooth HID Device
+transport, and the following API-usage details were taken from it as
+prior art:
+
+  * BluetoothAdapter.getProfileProxy(context, listener,
+    BluetoothProfile.HID_DEVICE) as the entry point, and that the
+    profile-proxy request can silently never call back on some ROMs.
+  * The five-argument BluetoothHidDevice.registerApp(sdp, inQos, outQos,
+    executor, callback) form, with the HID report descriptor passed as
+    the descriptors argument of BluetoothHidDeviceAppSdpSettings and
+    SUBCLASS1_COMBO used for a combined keyboard + mouse.
+  * BluetoothHidDeviceAppQosSettings best-effort parameter values
+    (800, 9, 0, 11250, MAX).
+  * sendReport(device, reportId, payload) carrying a payload that does
+    NOT include the report id byte.
+  * Programmatic discoverability (BluetoothAdapter.setScanMode) is not
+    available to third-party apps, so the ACTION_REQUEST_DISCOVERABLE
+    system dialog has to be used instead.
+
+Deliberate divergences from KeysJoy, for the record:
+
+  * Its keyboard report descriptor declares a single key slot
+    (Report Count 1). TouchDeck requires several keys held at once, so
+    the descriptor here uses the standard boot-protocol layout with six
+    key slots, written from scratch.
+  * Report ids, the mouse collection (five buttons, 16-bit relative
+    X/Y, vertical and horizontal wheel), the input state machine, the
+    gesture recogniser, the touchpad engine, the layout model, the
+    editor, the persistence layer, the Wi-Fi transport, the Windows
+    receiver and all UI are original to this repository.

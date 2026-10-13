@@ -8,6 +8,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import socket
 import zipfile
 import io
 
@@ -24,6 +25,9 @@ def main():
         data = Path(tmp)/'data'
         env = {**os.environ, 'MATHMASTER_DATA': str(data), 'MATHMASTER_PORT': '8875',
                'PYTHONUTF8': '1', 'PATH': os.environ['SystemRoot']+'\\System32'}
+        with socket.socket() as available:
+            available.bind(('127.0.0.1',0))
+            env['MATHMASTER_PHONEPAD_PORT']=str(available.getsockname()[1])
         flags = subprocess.CREATE_NO_WINDOW
         native = subprocess.run([str(exe), '--touchpad-worker', '--probe'], env=env, capture_output=True, timeout=15)
         assert native.returncode == 0, native.stderr.decode(errors='replace')
@@ -90,6 +94,26 @@ def main():
                 assert result['verified'] and result['exact_result'] == expected, result
                 assert result['steps'] and all(step['verified'] for step in result['steps'])
                 checks.append(endpoint)
+            # The LAN channel must also work inside the frozen application.
+            from websockets.sync.client import connect
+            session=request('/api/phonepad/start',{})
+            try:
+                with urllib.request.urlopen(url+'/api/phonepad/events?token='+session['token'],timeout=10) as stream:
+                    with connect('ws://127.0.0.1:'+str(session['port'])+'/ink',open_timeout=10) as phone:
+                        phone.send(json.dumps({'type':'hello','code':session['code']}))
+                        assert json.loads(phone.recv(timeout=10))['type']=='ready'
+                        assert json.loads(phone.recv(timeout=10))['type']=='target'
+                        phone.send(json.dumps({'type':'surface','ratio':2}))
+                        phone.send(json.dumps({'type':'contact','down':True,'x':.25,'y':.75}))
+                    events=[]
+                    while not any(e.get('type')=='commit' for e in events):
+                        line=stream.readline()
+                        assert line, 'Frozen phone stream ended early'
+                        if line.startswith(b'data: '):events.append(json.loads(line[6:]))
+                    assert {'type':'surface','ratio':2} in events
+                    assert any(e.get('type')=='contact' and e.get('down') and e.get('x')==.25 and e.get('y')==.75 for e in events)
+            finally:
+                request('/api/phonepad/stop',{'token':session['token']})
             q = request('/api/questions', {'text': '安装版测试题：$x^2$', 'number':'1', 'confirmed':True})
             notes = {'notes':'安装版验收笔记', 'draft':'[[{"x":10,"y":20},{"x":30,"y":40}]]', 'expected_updated_at':None}
             req = urllib.request.Request(url+'/api/questions/'+q['id']+'/attempt', data=json.dumps(notes).encode(),
@@ -116,7 +140,7 @@ def main():
             stop()
             assert (data/'mathmaster.db').exists()
             print(json.dumps({'frozen_executable':str(exe), 'checks':checks,
-                'native_probe':True, 'timeout_recovery':True, 'pdf_docx_import':True,
+                'native_probe':True, 'phonepad_transport':True, 'timeout_recovery':True, 'pdf_docx_import':True,
                 'notes_restart_backup':True, 'single_instance':True, 'tray_verified':not args.headless_only,
                 'external_python_node_required':False}, ensure_ascii=True))
         finally:

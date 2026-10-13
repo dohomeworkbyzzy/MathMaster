@@ -95,6 +95,8 @@ def main():
         logging.basicConfig(handlers=[RotatingFileHandler(logs/'launcher.log', maxBytes=2_000_000, backupCount=2, encoding='utf-8')], level=logging.INFO)
         preferred = int(os.environ.get('MATHMASTER_PORT', '8765'))
         for port in range(preferred, min(preferred + 10, 65536)):
+            if port==int(os.environ.get('MATHMASTER_PHONEPAD_PORT','8766')):
+                continue  # Reserve the independent phone ink channel.
             with socket.socket() as probe:
                 try:
                     probe.bind(('127.0.0.1', port))
