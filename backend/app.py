@@ -67,6 +67,9 @@ class IntegrateInput(CalculusInput):
     lower:str|None=Field(default=None,max_length=100)
     upper:str|None=Field(default=None,max_length=100)
 class DifferentiateInput(CalculusInput):
+    mode:Literal['explicit','implicit']='explicit'
+    dependent_variable:str=Field(default='y',min_length=1,max_length=1)
+    point:dict[str,str]|None=Field(default=None,max_length=2)
     order:int=Field(default=1,ge=1,le=8)
     variables:list[str]|None=Field(default=None,max_length=8)
 class MatrixInput(Input):

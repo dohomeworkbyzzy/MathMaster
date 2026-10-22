@@ -12,9 +12,18 @@ FUNCTIONS.update({'ln': s.log, 'abs': s.Abs, 'arctan': s.atan, 'arcsin': s.asin,
 CONSTANTS = {'pi': s.pi, 'e': s.E, 'E': s.E, 'oo': s.oo}
 
 def variable(name):
-    if not re.fullmatch('[a-df-z]', name):
+    if not isinstance(name,str) or not re.fullmatch('[a-df-z]', name):
         raise MathInputError('变量请使用单个英文字母（e 为自然常数）。')
     return s.Symbol(name, real=True)
+
+def parse_equation(text):
+    """Only this entry point accepts '='; both sides retain the closed grammar."""
+    if not isinstance(text,str) or not text.strip() or len(text)>600:
+        raise MathInputError('方程不能为空且不能超过 600 字符。')
+    if text.count('=')>1:
+        raise MathInputError('只支持一个等号的方程，不支持连等式。')
+    sides=text.split('=') if '=' in text else [text,'0']
+    return parse(sides[0],evaluate_functions=False),parse(sides[1],evaluate_functions=False)
 
 class LatexReader:
     def __init__(self, text):
@@ -61,7 +70,7 @@ class LatexReader:
 
 TOKEN=re.compile(r'\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z]+)|(\*\*|[+\-*/^(),|]))')
 
-def parse(text):
+def parse(text,*,evaluate_functions=True):
     if not isinstance(text,str) or not text.strip() or len(text)>600:
         raise MathInputError('表达式不能为空且不能超过 600 字符。')
     text=text.strip().replace('−','-').replace('×','*').replace('÷','/').replace('π','pi').replace('∞','oo')
@@ -101,7 +110,7 @@ def parse(text):
                 if tokens[i]!=')': raise MathInputError('函数仅支持一个参数且括号必须完整。')
                 i+=1
             else: arg=expr(25)
-            lhs=FUNCTIONS[tok](arg)
+            lhs=FUNCTIONS[tok](arg,evaluate=evaluate_functions)
             if exponent is not None: lhs=s.Pow(lhs,exponent,evaluate=False)
         elif tok in CONSTANTS: lhs=CONSTANTS[tok]
         elif re.fullmatch('[a-df-z]',tok): lhs=variable(tok)

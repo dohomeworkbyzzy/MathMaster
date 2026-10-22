@@ -98,3 +98,19 @@ def test_concurrent_note_write_conflict(client):
     assert client.get('/api/questions/'+q).json()['attempt']['notes']=='窗口 A 的笔记'
     update=client.put('/api/questions/'+q+'/attempt',json={'notes':'窗口 A 的新笔记','expected_updated_at':r.json()['updated_at']})
     assert update.status_code==200
+
+def test_implicit_api_history_and_validation(client):
+    qid=create(client)
+    body={'expression':'x^2+y^2=1','mode':'implicit','dependent_variable':'y',
+          'point':{'x':'3/5','y':'4/5'},'question_id':qid}
+    r=client.post('/api/math/differentiate',json=body)
+    assert r.status_code==200,r.text
+    result=r.json();assert result['verified'] and result['exact_result']=='-3/4'
+    h=client.get('/api/math/history',params={'question_id':qid}).json()[0]
+    assert h['request']['mode']=='implicit' and h['request']['point']==body['point']
+    assert h['result']['steps']==result['steps']
+    assert client.post(f"/api/questions/{qid}/calculations/{result['history_id']}",json={}).status_code==200
+    for extra in [{'order':2},{'variables':['x']},{'dependent_variable':'x'},{'mode':'unknown'},{'point':{'x':'0'}}]:
+        assert client.post('/api/math/differentiate',json={**body,**extra}).status_code==422
+    assert client.post('/api/math/differentiate',json={'expression':'x=y'}).status_code==422
+    assert len(client.get('/api/math/history',params={'question_id':qid}).json())==1
