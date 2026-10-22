@@ -201,14 +201,16 @@ def integrate_job(req):
     out['steps']=steps+bounded_steps; return out
 
 
-def derivative_trace(f,x,tr,depth=0):
+def derivative_trace(f,x,tr,depth=0,dependent=None):
     actual=s.diff(f,x); kids=[]; formula=None
     if depth>18:
         tr.complete=False
         return tr.step('symbolic_derivative',s.Derivative(f,x,evaluate=False),actual,'表达式过深，仅给出符号求导结果。',kind='derivative',verified=True)
-    def sub(g): return derivative_trace(g,x,tr,depth+1)
+    def sub(g): return derivative_trace(g,x,tr,depth+1,dependent)
     if not f.has(x): rule='constant'; rhs=s.S.Zero; explanation='对当前变量，常数和其他独立变量的导数为零。'
     elif f==x: rule='identity'; rhs=s.S.One; explanation='变量对自身的导数为 1。'
+    elif dependent is not None and f==dependent:
+        rule='dependent_variable'; rhs=actual; explanation='将因变量视为自变量的函数，其导数保留为一阶导数，不能按独立变量处理为零。'
     elif f.is_Add:
         rule='sum'; kids=[sub(g) for g in f.args]; rhs=sum(s.diff(g,x) for g in f.args); explanation='按求导的线性性质逐项求导。'
     elif f.is_Mul:
@@ -239,6 +241,11 @@ def derivative_trace(f,x,tr,depth=0):
 
 
 def differentiate_job(req):
+    if req.get('mode','explicit')=='implicit':
+        from .implicit import implicit_differentiate_job
+        return implicit_differentiate_job(req)
+    if req.get('mode','explicit')!='explicit': raise MathInputError('不支持的求导模式。')
+    if req.get('point') is not None: raise MathInputError('点值检查仅用于隐函数模式。')
     tr=Trace(); f=s.simplify(parse(req['expression'])); x=variable(req.get('variable','x'))
     if f.has(s.zoo,s.nan,s.oo,-s.oo):raise MathInputError('待求导函数不能包含无穷大或未定义常量。')
     order=req.get('order',1)
