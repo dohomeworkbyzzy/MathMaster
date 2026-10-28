@@ -16,6 +16,7 @@ import urllib.request
 def dispatch():
     workers = {
         '--math-worker': 'backend.worker',
+        '--ai-worker': 'backend.ai.worker',
         '--import-worker': 'backend.importer',
         '--touchpad-worker': 'backend.touchpad_native',
     }

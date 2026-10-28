@@ -1,11 +1,17 @@
+import {randomId} from './ids';
+import {userStorageKey} from './types';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { ArrowLeft,ArrowRight, BookOpen, Check, CheckCircle2, Eraser, FileText, Maximize2, PencilLine, RotateCcw, Save, Send, X } from 'lucide-react';
 import { api,json,type Attempt,type History,type Question,type Result } from './types';
 import { Calculator } from './Calculator';
+import {AITutor} from './AITutor';
+import {AnswerPanel} from './Grading';
+import {AnswerInput,type Spec,type Option} from './AnswerControls';
 import { RichText } from './math';
 import { ResultView } from './Steps';
-import {TouchpadInk} from './TouchpadInk';
-import {QuestionImages} from './QuestionImages';
+import {useInkPaper} from './InkWorkspace';
+import {QuestionImages,ReferenceImages} from './QuestionImages';
+import {AnnotationToolbar,useQuestionAnnotations,finishAnnotations} from './QuestionAnnotations';
 
 interface Point {x:number;y:number}
 type Stroke=Point[];
@@ -15,6 +21,8 @@ function Sketch({value,onChange}:{value:string;onChange:(s:string)=>void}){
  const paper=useRef<HTMLDivElement>(null);const [paperSize,setPaperSize]=useState({width:800,height:450});
  let parsed:Stroke[]=[];try{const obj=JSON.parse(value||'[]');if(Array.isArray(obj))parsed=obj;}catch{}
  const strokes=useRef(parsed);strokes.current=parsed;
+ const inkTools=useRef<HTMLSpanElement>(null);
+ useInkPaper(canvas,inkTools,ink=>{finish();const next=[...strokes.current,...ink];strokes.current=next;onChange(JSON.stringify(next));});
  let logicalHeight=450;for(const stroke of parsed)for(const point of stroke)logicalHeight=Math.max(logicalHeight,point.y+12);
  const canvasHeight=Math.ceil(Math.max(logicalHeight,paperSize.height*800/Math.max(1,paperSize.width)));
  function draw(extra:Stroke=[]){const el=canvas.current;const ctx=el?.getContext('2d');if(!el||!ctx)return;ctx.clearRect(0,0,800,el.height);ctx.strokeStyle=getComputedStyle(el).getPropertyValue('--workspace-ink').trim()||'#333';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';for(const line of [...strokes.current,extra]){if(line.length===0)continue;ctx.beginPath();ctx.moveTo(line[0].x,line[0].y);if(line.length===1)ctx.lineTo(line[0].x+0.2,line[0].y+0.2);for(const p of line.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();}}
@@ -44,17 +52,17 @@ function Sketch({value,onChange}:{value:string;onChange:(s:string)=>void}){
   if(drawing.current.length>=10000){finish();return;}
   drawing.current.push(point(e));draw(drawing.current);
  }
- return <div className="sketch"><div className="section-heading"><span><PencilLine size={14}/> 电子草稿</span><div className="toolbar"><TouchpadInk canvas={canvas} onCommit={lines=>{finish();const next=[...strokes.current,...lines];strokes.current=next;onChange(JSON.stringify(next));}}/>{penDown&&<span className="pen-status" role="status">落笔中</span>}<button title="撤销笔画" onClick={()=>onChange(JSON.stringify(strokes.current.slice(0,-1)))}><RotateCcw size={14}/></button><button title="清空草稿" onClick={()=>onChange('[]')}><Eraser size={14}/></button></div></div><div className="sketch-paper" ref={paper}><canvas aria-label="电子草稿画布" tabIndex={0} width="800" height={canvasHeight} ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onBlur={finish} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();finish();}}}/></div></div>;
+ return <div className="sketch"><div className="section-heading"><span><PencilLine size={14}/> 电子草稿</span><div className="toolbar"><span className="ink-tools" ref={inkTools}/>{penDown&&<span className="pen-status" role="status">落笔中</span>}<button title="撤销笔画" onClick={()=>onChange(JSON.stringify(strokes.current.slice(0,-1)))}><RotateCcw size={14}/></button><button title="清空草稿" onClick={()=>onChange('[]')}><Eraser size={14}/></button></div></div><div className="sketch-paper" ref={paper}><canvas aria-label="电子草稿画布" tabIndex={0} width="800" height={canvasHeight} ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onBlur={finish} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();finish();}}}/></div></div>;
 }
 
-const tabId=sessionStorage.getItem('mathmaster-tab-id')||crypto.randomUUID();
+const tabId=sessionStorage.getItem('mathmaster-tab-id')||randomId();
 sessionStorage.setItem('mathmaster-tab-id',tabId);
 
 function questionVersion(q:Question){return q.attempt?.updated_at||null;}
 
 function useAttempt(q:Question,notify:(s:string)=>void){
  const base:Attempt={answer:q.attempt?.answer||'',notes:q.attempt?.notes||'',draft:q.attempt?.draft||'',status:q.attempt?.status||'未作答',wrong:!!q.attempt?.wrong};
- const key='mathmaster-unsaved-'+q.id+'-'+tabId;let initial=base;let recovered:Attempt|null=null;
+ const key=userStorageKey('mathmaster-unsaved-'+q.id+'-'+tabId);let initial=base;let recovered:Attempt|null=null;
  try{const backup=localStorage.getItem(key);if(backup){const savedBackup=JSON.parse(backup);if(savedBackup.baseVersion===questionVersion(q))initial=savedBackup.attempt;else recovered=savedBackup.attempt;}}catch{}
  const [recovery,setRecovery]=useState<Attempt|null>(recovered);
  const version=useRef(questionVersion(q));
@@ -83,7 +91,8 @@ function useAttempt(q:Question,notify:(s:string)=>void){
  return {attempt,update,flush,saveState,recovery,restoreRecovery,downloadRecovery};
 }
 
-export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{question:Question;onBack:()=>void;onNext:(n:number)=>void;onEdit:()=>void;notify:(s:string)=>void;registerFlush:(fn:(()=>Promise<void>)|null)=>void}){
+export function Practice({question,onBack,onWrong,backLabel='返回题库',onNext,onEdit,onSelectQuestion,onQuestionChanged,notify,registerFlush}:{question:Question;onBack:()=>void;onWrong:()=>void;backLabel?:string;onNext:(n:number)=>void;onEdit:()=>void;onSelectQuestion:(id:string)=>void;onQuestionChanged:()=>void;notify:(s:string)=>void;registerFlush:(fn:(()=>Promise<void>)|null)=>void}){
+ const annotations=useQuestionAnnotations(question.id,question.images.length>0,notify);
  const {attempt,update,flush,saveState,recovery,restoreRecovery,downloadRecovery}=useAttempt(question,notify);const [notePreview,setNotePreview]=useState(false);const [reference,setReference]=useState(false);
  const [collapsed,setCollapsed]=useState(false);const [floating,setFloating]=useState(false);const [fullscreen,setFullscreen]=useState(false);const [send,setSend]=useState('');const [selection,setSelection]=useState<string|null>(null);const [calculations,setCalculations]=useState(question.calculations||[]);
  const [autoLayout,setAutoLayout]=useState(true);const [questionHeight,setQuestionHeight]=useState(240);
@@ -94,25 +103,29 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  const [notesOpen,setNotesOpen]=useState(false),[compactCalc,setCompactCalc]=useState(false);
  useEffect(()=>{const resize=()=>setCompact(window.innerWidth<=900||window.innerHeight<=680);window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[]);
  useEffect(()=>{if(compact)window.scrollTo({top:0,left:0,behavior:'auto'});},[compact]);
- const calcHidden=collapsed||(compact&&!compactCalc);
+ const [answerInfo,setAnswerInfo]=useState<{spec:Spec;options:Option[]}|null>(null);
+ useEffect(()=>{let live=true;api<{spec:Spec;options:Option[]}>('/api/grading/questions/'+question.id).then(d=>{if(live)setAnswerInfo(d);}).catch(e=>notify(e.message));return()=>{live=false;};},[question.id,question.text]);
+ const [aiOpen,setAiOpen]=useState(false);const [answerOpen,setAnswerOpen]=useState(false);
+ const calcHidden=aiOpen||collapsed||(compact&&!compactCalc);
  const panes=useRef<HTMLDivElement>(null);const questionContent=useRef<HTMLDivElement>(null);
  const [floatPos,setFloatPos]=useState({x:Math.max(20,window.innerWidth-530),y:110});
  const minimumDraft=compact?Math.min(210,Math.max(160,Math.floor(window.innerHeight*.46)),Math.max(100,availableHeight-120)):210;
  const minimumQuestion=compact?96:140;
- const areaHeight=compact?availableHeight:Math.max(availableHeight,manualAreaHeight,questionHeight+minimumDraft+10);
+ const areaHeight=aiOpen||compact?availableHeight:Math.max(availableHeight,manualAreaHeight,questionHeight+minimumDraft+10);
  useEffect(()=>{
   const area=panes.current,content=questionContent.current;if(!area||!content)return;
   const measure=()=>{
    const available=Math.max(compact?260:410,window.innerHeight-area.getBoundingClientRect().top-(compact?0:window.scrollY)-12);
    setAvailableHeight(available);
+   if(aiOpen)return;
    if(autoLayout)setQuestionHeight(Math.max(minimumQuestion,fittingImages?Math.min(available-minimumDraft-10,available*.5):Math.min(Math.ceil(content.getBoundingClientRect().height)+2,compact?Math.min(available-minimumDraft-10,available*.5):Infinity)));
    else setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(height,(compact?available:Math.max(available,manualAreaHeight))-minimumDraft-10)));
   };
   const observer=new ResizeObserver(measure);observer.observe(content);observer.observe(area);
   window.addEventListener('resize',measure);measure();
   return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
- },[autoLayout,manualAreaHeight,compact,minimumQuestion,minimumDraft,fittingImages]);
- useEffect(()=>{registerFlush(flush);return()=>registerFlush(null);},[flush]);
+ },[autoLayout,manualAreaHeight,compact,minimumQuestion,minimumDraft,fittingImages,aiOpen]);
+ useEffect(()=>{registerFlush(async()=>{window.dispatchEvent(new Event('mathmaster-ink-flush'));finishAnnotations();await Promise.all([flush(),annotations.flush()]);});return()=>registerFlush(null);},[flush,annotations.flush]);
  function resizeQuestion(e:React.PointerEvent<HTMLDivElement>){
   e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setAutoLayout(false);
   const start=e.clientY,initial=questionHeight;
@@ -132,29 +145,33 @@ export function Practice({question,onBack,onNext,onEdit,notify,registerFlush}:{q
  function dragFloat(e:React.PointerEvent){if((e.target as HTMLElement).closest('button'))return;const sx=e.clientX,sy=e.clientY,start={...floatPos};const move=(ev:PointerEvent)=>setFloatPos({x:Math.min(window.innerWidth-200,Math.max(0,start.x+ev.clientX-sx)),y:Math.min(window.innerHeight-60,Math.max(0,start.y+ev.clientY-sy))});const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);}
  async function insert(result:Result){try{await api('/api/questions/'+question.id+'/calculations/'+result.history_id,json({}));const h=await api<Question>('/api/questions/'+question.id);setCalculations(h.calculations||[]);notify('已将结果和完整步骤插入本题笔记');}catch(e){notify((e as Error).message);}}
  function exportNotes(){function lines(steps:Result['steps']):string{return steps.map(st=>`${st.explanation_zh}\n\n$$${st.before_latex}$$\n\n$$${st.after_latex}$$\n\n${lines(st.children)}`).join('\n');}const content=`# 第 ${question.number} 题\n\n${question.text}\n\n## 我的答案\n\n${attempt.answer}\n\n## 解题笔记\n\n${attempt.notes}\n\n`+calculations.map(h=>`## ${h.result.method}\n\n$$${h.result.input_latex}$$\n\n$$${h.result.result_latex}$$\n\n${lines(h.result.steps)}\n条件：${h.result.assumptions.join('；')}\n提示：${h.result.warnings.join('；')}`).join('\n');const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='MathMaster-解题笔记.md';a.click();URL.revokeObjectURL(url);}
- return <><div className={"practice-bar"+(compact?" compact-practice":"")}><button className="text-button" onClick={onBack}><ArrowLeft size={15}/>返回题库</button><div className="practice-title"><span className="subject-tag">{question.subject}</span><b>第 {question.number} 题</b><span>{question.paper_title||'本地题库'}</span></div><div className="practice-tools"><span className="save-status"><Save size={13}/>{saveState}</span><button className="secondary small" aria-pressed={autoLayout} onClick={()=>{setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setAutoLayout(value=>!value);}}>{autoLayout?'自动调节：开':'自动调节：关'}</button><button className="secondary small" onClick={()=>onNext(-1)}>上一题</button><button className="secondary small" onClick={()=>onNext(1)}>下一题</button>{compact&&<button className="secondary small" aria-pressed={notesOpen} onClick={()=>setNotesOpen(v=>!v)}>笔记与答案</button>}{calcHidden&&<button className="secondary small" onClick={()=>{setCollapsed(false);setCompactCalc(true);}}>展开计算器</button>}</div></div>
- <div className={"practice-panes"+(compact?" compact-practice":"")} ref={panes} style={{height:areaHeight}}>
+ return <><div className={"practice-bar"+(compact?" compact-practice":"")}><button className="text-button" onClick={onBack}><ArrowLeft size={15}/>{backLabel}</button><div className="practice-title"><span className="subject-tag">{question.subject}</span><b>第 {question.number} 题</b><span>{question.paper_title||'本地题库'}</span></div><div className="practice-tools"><button className="secondary small" aria-pressed={aiOpen} onClick={()=>{if(!aiOpen)window.dispatchEvent(new Event('mathmaster-ink-flush'));setAiOpen(v=>!v);setFloating(false);setFullscreen(false);}}>AI 解题</button><button className="secondary small" onClick={()=>setAnswerOpen(true)}>答案与批改</button><span className="save-status"><Save size={13}/>{saveState}</span><button hidden={aiOpen} className="secondary small" aria-pressed={autoLayout} onClick={()=>{setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setAutoLayout(value=>!value);}}>{autoLayout?'自动调节：开':'自动调节：关'}</button><button className="secondary small" onClick={()=>onNext(-1)}>上一题</button><button className="secondary small" onClick={()=>onNext(1)}>下一题</button>{compact&&backLabel!=='返回错题本'&&<button className="secondary small" onClick={onWrong}>打开错题本</button>}{compact&&!aiOpen&&<button className="secondary small" aria-pressed={notesOpen} onClick={()=>setNotesOpen(v=>!v)}>笔记与答案</button>}{calcHidden&&!aiOpen&&<button className="secondary small" onClick={()=>{setCollapsed(false);setCompactCalc(true);}}>展开计算器</button>}</div></div>
+ <div className={"practice-panes"+(compact?" compact-practice":"")+(aiOpen?" ai-mode":"")} ref={panes} style={{height:areaHeight}}>
  <div className="practice-stack">
-  <section className={'question-pane pane'+(fittingImages?' fit-question-images':'')} aria-label="题目区" style={{height:questionHeight}}>
+  <section className={'question-pane pane'+(fittingImages?' fit-question-images':'')} aria-label="题目区" style={{height:aiOpen?'48%':questionHeight}}>
    <div className="question-content" ref={questionContent}>
-    <div className="pane-heading"><span>题目{!question.confirmed&&<small className="question-review">题图 / 文字待核对</small>}{question.images.length>0&&<button className="text-button question-image-toggle" onClick={()=>setFitImages(value=>!value)} title={fitImages?'切换为按宽度放大，可滚动查看细节':'按题目区宽高等比例缩小，完整显示所有题图'}>{fitImages?'放大题图':'完整题图'}</button>}</span><div><button className="text-button" onClick={()=>setSelection(window.getSelection()?.toString().trim()||'')}><Send size={13}/>选中表达式发送到计算器</button><button className="text-button" onClick={onEdit}>{question.confirmed?'编辑题目':'检查拆题'}</button></div></div>
+    <div className="pane-heading"><span>题目{!question.confirmed&&<small className="question-review">题图 / 文字待核对</small>}{question.images.length>0&&<button className="text-button question-image-toggle" onClick={()=>setFitImages(value=>!value)} title={fitImages?'切换为按宽度放大，可滚动查看细节':'拉伸铺满题目区宽高，完整显示所有题图'}>{fitImages?'放大题图':'完整题图'}</button>}{question.images.length>0&&<><button className="text-button question-annotation-toggle" aria-label={annotations.enabled?'完成题目标注':'标注题目'} aria-pressed={annotations.enabled} disabled={!annotations.ready} onClick={annotations.toggle}>{annotations.enabled?'完成标注':'标注题目'}</button><small className="annotation-summary">{annotations.status}</small></>}</span><div><button className="text-button" onClick={()=>setSelection(window.getSelection()?.toString().trim()||'')}><Send size={13}/>选中表达式发送到计算器</button><button className="text-button" onClick={onEdit}>{question.confirmed?'编辑题目':'检查拆题'}</button></div></div>
+    {question.images.length>0&&<AnnotationToolbar controller={annotations}/>}
     {question.images.length>0?<details className="question-context"><summary>题目说明与识别文字</summary><div className="question-text" onMouseUp={()=>{const text=window.getSelection()?.toString().trim();if(text&&text.length<=600)setSelection(text);}}><RichText text={question.text||'请以原始题图为准。'}/></div>{question.source_filename&&<a className="text-button" href={'/api/files/'+question.source_filename} target="_blank" rel="noreferrer">打开原始试卷 ↗</a>}</details>:<div className="question-text" onMouseUp={()=>{const text=window.getSelection()?.toString().trim();if(text&&text.length<=600)setSelection(text);}}><RichText text={question.text}/></div>}
-    <QuestionImages images={question.images} fit={fittingImages}/>
+    <QuestionImages images={question.images} fit={fittingImages} preserveAspect={aiOpen} annotations={annotations}/>
    </div>
   </section>
-  <div className="question-draft-divider" role="separator" aria-label="调整题目与草稿高度" aria-orientation="horizontal" aria-valuemin={minimumQuestion} aria-valuemax={areaHeight-minimumDraft-10} aria-valuenow={questionHeight} tabIndex={0} onPointerDown={resizeQuestion} onDoubleClick={()=>setAutoLayout(true)} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAutoLayout(false);setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(areaHeight-minimumDraft-10,height+(e.key==='ArrowUp'?-24:24))));}if(e.key==='Home'){e.preventDefault();setAutoLayout(true);}}}><span/></div>
-  <section className="notes-pane pane" aria-label="草稿区" style={compact?{minHeight:minimumDraft}:undefined}>
+  <div hidden={aiOpen} className="question-draft-divider" role="separator" aria-label="调整题目与草稿高度" aria-orientation="horizontal" aria-valuemin={minimumQuestion} aria-valuemax={areaHeight-minimumDraft-10} aria-valuenow={questionHeight} tabIndex={0} onPointerDown={resizeQuestion} onDoubleClick={()=>setAutoLayout(true)} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAutoLayout(false);setManualAreaHeight(Math.max(availableHeight,questionHeight+minimumDraft+10));setQuestionHeight(height=>Math.max(minimumQuestion,Math.min(areaHeight-minimumDraft-10,height+(e.key==='ArrowUp'?-24:24))));}if(e.key==='Home'){e.preventDefault();setAutoLayout(true);}}}><span/></div>
+  <section className="notes-pane pane" aria-label="草稿区" style={compact&&!aiOpen?{minHeight:minimumDraft}:undefined}>
    <div className="pane-heading"><span>草稿与笔记</span><div><button className="text-button" onClick={()=>setNotePreview(v=>!v)}>{notePreview?'编辑笔记':'预览笔记'}</button><button className="text-button" onClick={exportNotes}>导出</button></div></div>
    {recovery&&<div className="warnings"><p>发现未同步草稿，但数据库已有新版本。已保留当前记录，未自动覆盖。</p><p>旧笔记：{recovery.notes.slice(0,160)||'（空）'}</p><button className="text-button" onClick={downloadRecovery}>下载未同步草稿</button><button className="text-button" onClick={restoreRecovery}>将旧草稿加载到编辑器</button></div>}
-   <div className="draft-body"><Sketch value={attempt.draft} onChange={draft=>update({draft})}/><div className={"draft-tools"+(compact&&!notesOpen?" compact-hidden":"")}>{compact&&<button className="text-button close-notes" onClick={()=>setNotesOpen(false)}>收起笔记 <X size={14}/></button>}<label className="field-label">解题笔记</label>{notePreview?<RichText text={attempt.notes||'还没有笔记。'}/>:<textarea className="notes-editor" aria-label="解题笔记" placeholder="记录解题思路，支持 $LaTeX$" value={attempt.notes} onChange={e=>update({notes:e.target.value})}/>}
-    <div className="question-answer"><label className="field-label">我的答案<textarea value={attempt.answer} aria-label="我的答案" placeholder="最终答案" onChange={e=>update({answer:e.target.value,status:'作答中'})}/></label><div className="answer-tools"><button className={'secondary small '+(attempt.wrong?'wrong-selected':'')} onClick={()=>update({wrong:!attempt.wrong})}>{attempt.wrong?'已加入错题本':'加入错题本'}</button><button className={'primary small '+(attempt.status==='已完成'?'completed':'')} onClick={()=>update({status:attempt.status==='已完成'?'作答中':'已完成'})}><CheckCircle2 size={14}/>{attempt.status==='已完成'?'已完成':'完成本题'}</button></div><button className="text-button" onClick={()=>setReference(value=>!value)}>{reference?'收起':'查看'}参考答案</button>{reference&&<RichText text={question.reference_answer||'本题尚未录入参考答案，可在编辑题目中添加。'}/>}</div>
+   <div className="draft-body"><Sketch value={attempt.draft} onChange={draft=>update({draft})}/><div className={"draft-tools"+(compact&&!notesOpen?" compact-hidden":"")}>{compact&&<button className="text-button close-notes" onClick={()=>setNotesOpen(false)}>收起笔记 <X size={14}/></button>}
+    <div className="question-answer" hidden={answerOpen}><AnswerInput spec={answerInfo?.spec||{kind:'subjective',max_points:1}} options={answerInfo?.options} value={attempt.answer} label="我的答案" onChange={answer=>update({answer,status:'作答中'})}/><div className="answer-tools"><button className={'secondary small '+(attempt.wrong?'wrong-selected':'')} onClick={()=>update({wrong:!attempt.wrong})}>{attempt.wrong?'已加入错题本':'加入错题本'}</button><button className={'primary small '+(attempt.status==='已完成'?'completed':'')} onClick={()=>update({status:attempt.status==='已完成'?'作答中':'已完成'})}><CheckCircle2 size={14}/>{attempt.status==='已完成'?'已完成':'完成本题'}</button></div><button className="text-button" onClick={()=>setReference(value=>!value)}>{reference?'收起':'查看'}参考答案</button>{reference&&<><RichText text={question.reference_answer||'本题尚未录入参考答案，可在编辑题目中添加。'}/><ReferenceImages images={question.reference_images||[]}/>{question.reference_filename&&<a className="text-button" href={'/api/files/'+question.reference_filename} target="_blank" rel="noreferrer">打开参考解析 PDF</a>}</>}</div>
+    <label className="field-label">解题笔记</label>{notePreview?<RichText text={attempt.notes||'还没有笔记。'}/>:<textarea className="notes-editor" aria-label="解题笔记" placeholder="记录解题思路，支持 $LaTeX$" value={attempt.notes} onChange={e=>update({notes:e.target.value})}/>}
     {calculations.length>0&&<div className="note-calculations"><div className="section-heading"><b>已插入的计算推导</b><small>{calculations.length} 条</small></div>{calculations.map(h=><ResultView result={h.result} key={h.id} notify={notify}/>)}</div>}
    </div></div>
   </section>
  </div>
+ {aiOpen&&<div className="ai-practice-pane"><AITutor question={question} reference={reference} answerInfo={answerInfo} selectedAnswer={attempt.answer} onSelectAnswer={answer=>update({answer,status:'作答中'})} onOpenGrading={()=>setAnswerOpen(true)} answerDialogOpen={answerOpen} onClose={()=>setAiOpen(false)} onInsert={insert} onSelect={onSelectQuestion} onChanged={onQuestionChanged} onAnswer={(answer,reasoning)=>{update({answer,notes:(attempt.notes&&reasoning?attempt.notes+'\n\nAI 引导过程：\n'+reasoning:attempt.notes||reasoning).slice(0,30000),status:'已完成'});}} notify={notify}/></div>}
  {!calcHidden&&!floating&&!fullscreen&&<div className="pane-divider" role="separator" aria-label="调整计算器宽度" onPointerDown={resizeCalculator}/>}
  <div className={(fullscreen?'fullscreen-calc':floating?'floating-calc':'calculator-pane')+(calcHidden?' hidden':'')} style={floating&&!fullscreen?{left:floatPos.x,top:floatPos.y}:!fullscreen?{flexBasis:calculatorWidth}:{}}>{(floating||fullscreen)&&<div className="float-handle" onPointerDown={dragFloat}><span>{fullscreen?'全屏计算工作台':'拖动标题可移动计算器'}</span><button className="text-button" onClick={()=>{setFloating(false);setFullscreen(false);}}>返回工作台 <X size={15}/></button></div>}<Calculator questionId={question.id} compact={!fullscreen} send={send} notify={notify} onInsert={insert} onCollapse={()=>{setCollapsed(true);setCompactCalc(false);}} onFloat={()=>{setFloating(value=>!value);setFullscreen(false);}} onFullscreen={()=>setFullscreen(value=>!value)}/></div>
  </div>
- {selection!==null&&<div className="modal-backdrop"><div className="modal"><div className="modal-heading"><h3>确认数学表达式</h3><button className="icon-button" onClick={()=>setSelection(null)}><X size={18}/></button></div><p className="muted">题目文字或 OCR 可能识别错误。请确认表达式完整、公式准确，再发送到计算器。</p><textarea aria-label="确认数学表达式" value={selection} onChange={e=>setSelection(e.target.value)} placeholder="例如 2x/(x^2+1)"/><div className="modal-actions"><button className="secondary" onClick={()=>setSelection(null)}>取消</button><button className="primary" disabled={!selection.trim()} onClick={()=>{setSend(selection);setCollapsed(false);setCompactCalc(true);setSelection(null);}}>确认并填入计算器 <ArrowRight size={15}/></button></div></div></div>}
+ {answerOpen&&<AnswerPanel question={question} attempt={attempt} update={update} flush={flush} onClose={()=>setAnswerOpen(false)} onExposed={()=>setReference(true)} notify={notify}/>}
+ {selection!==null&&<div className="modal-backdrop"><div className="modal"><div className="modal-heading"><h3>确认数学表达式</h3><button className="icon-button" onClick={()=>setSelection(null)}><X size={18}/></button></div><p className="muted">题目文字或 OCR 可能识别错误。请确认表达式完整、公式准确，再发送到计算器。</p><textarea aria-label="确认数学表达式" value={selection} onChange={e=>setSelection(e.target.value)} placeholder="例如 2x/(x^2+1)"/><div className="modal-actions"><button className="secondary" onClick={()=>setSelection(null)}>取消</button><button className="primary" disabled={!selection.trim()} onClick={()=>{setSend(selection);setAiOpen(false);setCollapsed(false);setCompactCalc(true);setSelection(null);}}>确认并填入计算器 <ArrowRight size={15}/></button></div></div></div>}
  </>;
 }

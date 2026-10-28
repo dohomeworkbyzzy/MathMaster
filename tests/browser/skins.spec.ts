@@ -19,31 +19,33 @@ test('skins preserve live notes, answers and ink; cover restores the same worksp
   await expect(page.getByLabel('解题笔记',{exact:true})).toHaveValue('切换前的笔记');
   await expect(page.getByLabel('我的答案')).toHaveValue('保留答案');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBeTruthy();
-  await page.screenshot({path:'docs/screenshots/skin-'+id+'.png'});
+  await page.screenshot({path:'test-results/skin-'+id+'.png'});
  }
  await page.getByLabel('解题笔记',{exact:true}).fill('F8 前尚在编辑的笔记');
  await page.keyboard.press('F8');await expect(page.getByRole('dialog',{name:'工作报告',exact:true})).toBeVisible();
  await expect(page).toHaveTitle('项目进度周报.docx - Word');
  await expect(page.locator('.app')).toHaveAttribute('inert','');
- await page.screenshot({path:'docs/screenshots/skin-cover.png'});
+ await page.screenshot({path:'test-results/skin-cover.png'});
  await page.keyboard.press('F8');await expect(page.getByRole('dialog',{name:'工作报告',exact:true})).toHaveCount(0);
  await expect(page.getByLabel('解题笔记',{exact:true})).toHaveValue('F8 前尚在编辑的笔记');
  await expect.poll(async()=>{const q=await (await request.get('/api/questions/'+id)).json();return [q.attempt?.notes,q.attempt?.answer,JSON.parse(q.attempt?.draft||'[]').length];}).toEqual(['F8 前尚在编辑的笔记','保留答案',1]);
  await page.getByRole('button',{name:'返回题库'}).click();await page.reload();
  await expect(page.locator('.app')).toHaveClass(/skin-sheet/);await expect(page).toHaveTitle('数据分析工作簿.xlsx - Excel');
- await choose(page,'原版');await expect(page.getByRole('heading',{name:'数学计算工作台'})).toBeVisible();
+ await choose(page,'原版');await expect(page.getByRole('heading',{name:'继续做题',exact:true})).toBeVisible();
  expect(errors).toEqual([]);
 });
 
-test('skin menu, cover and calculator work at compact window sizes',async({page})=>{
+test('skin menu, cover and calculator work at compact window sizes',async({page,request})=>{
+ const tag='SKIN-CALC-'+Date.now();await request.post('/api/questions',{data:{number:tag,text:'皮肤内题目计算验收',confirmed:true}});
  await page.addInitScript(()=>localStorage.setItem('mathmaster-skin','invalid-skin'));
  await page.goto('/');await expect(page.locator('.app')).toHaveClass(/skin-original/);
+ await page.getByRole('button',{name:'本地题库',exact:true}).click();await page.getByLabel('搜索题库').fill(tag);await page.locator('.question-card').getByRole('button',{name:'开始练习'}).click();
  // Text inputs and results must survive a cover even when the calculator is fullscreen.
  await page.getByRole('button',{name:'文本表达式',exact:true}).click();await page.getByLabel('文本表达式',{exact:true}).fill('x^2');
  await page.getByRole('button',{name:'全屏',exact:true}).click();await page.keyboard.press('F8');
  await page.getByRole('button',{name:'返回工作区 F8',exact:true}).click();
  await expect(page.getByLabel('文本表达式',{exact:true})).toHaveValue('x^2');
- await page.getByRole('button',{name:'退出全屏',exact:true}).click();
+ await page.getByRole('button',{name:'返回工作台',exact:true}).click();
  await page.setViewportSize({width:620,height:470});
  for(const name of ['VS Code','Word 文档','Excel 表格','原版']){
   await choose(page,name);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBeTruthy();
@@ -51,7 +53,7 @@ test('skin menu, cover and calculator work at compact window sizes',async({page}
   await page.keyboard.press('F8');await expect(page.getByRole('dialog',{name:'工作报告',exact:true})).toBeVisible();
   await page.keyboard.press('F8');
  }
- await choose(page,'VS Code');await page.getByRole('button',{name:'开始计算',exact:true}).click();await expect(page.locator('.verified-badge')).toHaveText('验证通过',{timeout:20000});
+ await choose(page,'VS Code');await page.getByRole('button',{name:'展开计算器',exact:true}).click();await page.getByRole('button',{name:'全屏',exact:true}).click();await page.getByRole('button',{name:'开始计算',exact:true}).click();await expect(page.locator('.verified-badge')).toHaveText('验证通过',{timeout:20000});
  await expect(page.locator('.answer-box')).toContainText('3');
 });
 

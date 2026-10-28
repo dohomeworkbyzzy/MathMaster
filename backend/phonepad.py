@@ -161,7 +161,8 @@ class Bridge:
             yield 'data: ' + json.dumps({'type': 'error', 'message': '会话已被连接'}) + '\n\n'
             return
         try:
-            while not session.closed and time.monotonic() - session.created < 1800:
+            yield 'data: ' + json.dumps({'type': 'status', 'message': '手机已连接' if session.connected else '等待手机连接'}) + '\n\n'
+            while not session.closed:
                 for _ in range(128):
                     try:
                         event = session.queue.get_nowait()
@@ -171,7 +172,9 @@ class Bridge:
                 yield ': keepalive\n\n'
                 await asyncio.sleep(.008)
         finally:
-            session.close()
+            with self.lock:
+                session.attached = False
+                session.control = {**session.control, 'selected': False, 'reset': session.control['reset'] + 1}
 
 
 bridge = Bridge()

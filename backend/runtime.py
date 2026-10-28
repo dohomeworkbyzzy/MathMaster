@@ -5,6 +5,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 WORKERS = {
     'backend.worker': '--math-worker',
+    'backend.ai.worker': '--ai-worker',
     'backend.importer': '--import-worker',
     'backend.touchpad_native': '--touchpad-worker',
 }

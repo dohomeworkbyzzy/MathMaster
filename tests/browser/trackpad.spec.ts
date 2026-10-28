@@ -27,9 +27,9 @@ test('unavailable native input reports a real error; conventional mouse ink stil
 test('absolute contact fixtures lift separately, ignore cursor moves, shrink on hardware mouse and save',async({page,request})=>{
  // Synthetic native event stream for browser acceptance; never used by production.
  await page.addInitScript(()=>{
-  class FixtureStream {
-   onmessage:((event:{data:string})=>void)|null=null;onerror:(()=>void)|null=null;
-   constructor(){(window as any).__pad=this;}
+  class FixtureStream extends EventTarget {
+   onmessage=(event:{data:string})=>this.dispatchEvent(new MessageEvent('message',{data:event.data}));
+   constructor(){super();(window as any).__pad=this;}
    close(){(window as any).__padClosed=true;}
   }
   (window as any).EventSource=FixtureStream;
@@ -80,7 +80,7 @@ test('absolute contact fixtures lift separately, ignore cursor moves, shrink on 
 
 test('mouse selects a visible bounded destination; outside paper ignores ink and commits keep the old destination',async({page,request})=>{
  await page.addInitScript(()=>{
-  class Stream {onmessage:((event:{data:string})=>void)|null=null;onerror=null;constructor(){(window as any).__pad=this;}close(){}}
+  class Stream extends EventTarget {onmessage=(event:{data:string})=>this.dispatchEvent(new MessageEvent('message',{data:event.data}));constructor(){super();(window as any).__pad=this;}close(){}}
   (window as any).EventSource=Stream;
  });
  await page.route('**/api/touchpad/start',route=>route.fulfill({json:{token:'bounded-native-test-session-token',devices:[{x_range:[0,1000],y_range:[0,600],aspect_ratio:1.65}]}}));

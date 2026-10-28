@@ -9,8 +9,7 @@ import sys
 import threading
 import time
 import ctypes as c
-from .jobs import ROOT
-from .runtime import worker_command
+from .runtime import ROOT, worker_command
 
 
 class ClipRect(c.Structure):

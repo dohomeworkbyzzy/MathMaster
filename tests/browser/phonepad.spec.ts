@@ -1,10 +1,12 @@
 import {test,expect} from '@playwright/test';
 
-test('real phone ink channel maps its complete surface to the large mouse range and saves',async({page,request})=>{
+test('phone ink stays connected across focus, cover and question changes, with hidden controls',async({page,request})=>{
  const number='PHONE-PAD-'+Date.now();
+ const {id:nextId}=await (await request.post('/api/questions',{data:{number:number+'-next',text:'下一题手机书写验收',confirmed:true}})).json();
  const {id}=await (await request.post('/api/questions',{data:{number,text:'手机草稿范围验收',confirmed:true}})).json();
  await page.goto('/');await page.getByRole('button',{name:'本地题库',exact:true}).click();
- await page.getByLabel('搜索题库').fill(number);await page.locator('.question-card').getByRole('button',{name:'开始练习'}).click();
+ await page.getByLabel('搜索题库').fill(number);await page.locator('.question-card').first().getByRole('button',{name:'开始练习'}).click();
+ let starts=0,stops=0;page.on('request',r=>{if(r.url().endsWith('/api/phonepad/start'))starts++;if(r.url().endsWith('/api/phonepad/stop'))stops++;});
  const responsePromise=page.waitForResponse(r=>r.url().endsWith('/api/phonepad/start'));
  const streamPromise=page.waitForResponse(r=>r.url().includes('/api/phonepad/events?'));
  await page.getByRole('button',{name:'手机书写',exact:true}).click();
@@ -14,7 +16,15 @@ test('real phone ink channel maps its complete surface to the large mouse range 
  try{
   await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Phone pairing timed out')),8000);ws.onopen=()=>ws.send(JSON.stringify({type:'hello',code:session.code}));ws.onerror=reject;ws.onmessage=e=>{const event=JSON.parse(String(e.data));if(event.type==='ready'){clearTimeout(timer);resolve();}else if(event.type==='error'){clearTimeout(timer);reject(new Error(event.message));}};});
   ws.send(JSON.stringify({type:'surface',ratio:2}));
-  await expect(page.getByRole('status').filter({hasText:'手机已连接'})).toBeVisible();
+  const phone=page.getByRole('button',{name:'手机书写',exact:true});
+  await expect(phone).toHaveAttribute('title',/手机已连接/);
+  await expect(page.locator('.touchpad-controls')).toHaveCount(0);
+  await phone.click();await expect(page.locator('.touchpad-controls')).toBeVisible();
+  await phone.click();await expect(page.locator('.touchpad-controls')).toHaveCount(0);
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  await expect(phone).toHaveAttribute('aria-pressed','true');
+  await page.keyboard.press('F8');await expect(page.getByRole('dialog',{name:'工作报告'})).toBeVisible();
+  await page.keyboard.press('F8');await expect(phone).toHaveAttribute('aria-pressed','true');
   const canvas=(await page.getByLabel('电子草稿画布').boundingBox())!;
   await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+100);
   const target=page.getByLabel('草稿落笔范围'),preview=page.getByLabel('放大笔迹');
@@ -33,7 +43,31 @@ test('real phone ink channel maps its complete surface to the large mouse range 
   const saved=JSON.parse((await (await request.get('/api/questions/'+id)).json()).attempt.draft)[0];
   expect(saved[1].x-saved[0].x).toBeCloseTo(box.width*800/canvas.width,1);
   expect((saved[1].x-saved[0].x)/(saved[1].y-saved[0].y)).toBeCloseTo(2,4);
+  // Switching with pending ink must save it to the old question before rebinding.
+  ws.send(JSON.stringify({type:'contact',down:true,x:.2,y:.2}));
+  ws.send(JSON.stringify({type:'contact',down:true,x:.4,y:.4}));
+  ws.send(JSON.stringify({type:'contact',down:false}));
+  await expect(preview.locator('path')).toHaveCount(1);
+  await page.getByRole('button',{name:'下一题',exact:true}).click();
+  await expect(page.locator('.practice-title')).toContainText(number+'-next');
+  await expect.poll(async()=>JSON.parse((await (await request.get('/api/questions/'+id)).json()).attempt?.draft||'[]').length).toBe(2);
+  await expect(phone).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('.touchpad-controls')).toHaveCount(0);
+  await expect(target).toHaveCount(0);
+  const nextCanvas=(await page.getByLabel('电子草稿画布').boundingBox())!;
+  await page.mouse.move(nextCanvas.x+nextCanvas.width*.5,nextCanvas.y+100);
+  await expect(target).toBeVisible();
+  ws.send(JSON.stringify({type:'contact',down:true,x:.1,y:.1}));
+  ws.send(JSON.stringify({type:'contact',down:true,x:.8,y:.8}));
+  ws.send(JSON.stringify({type:'contact',down:false}));
+  await expect(preview.locator('path')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog',{name:'触控板放大书写区'})).toHaveCount(0);
+  await expect.poll(async()=>JSON.parse((await (await request.get('/api/questions/'+nextId)).json()).attempt?.draft||'[]').length).toBe(1);
+  await page.getByRole('button',{name:'返回题库',exact:true}).click();
+  expect(ws.readyState).toBe(WebSocket.OPEN);
+  await page.locator('.question-card').first().getByRole('button',{name:/开始练习|继续作答/}).click();
+  await expect(phone).toHaveAttribute('aria-pressed','true');
+  expect(starts).toBe(1);expect(stops).toBe(0);
  }finally{ws.close();}
 });

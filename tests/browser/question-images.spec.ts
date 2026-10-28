@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('all question images fit proportionally when the window and divider shrink',async({page,request})=>{
+test('all question images stretch to fill when the window and divider shrink',async({page,request})=>{
  const number='IMAGE-FIT-'+Date.now();
  const {id}=await (await request.post('/api/questions',{data:{number,text:'题图缩放验收\n'+('识别文字，仅作参考。\n'.repeat(20)),confirmed:true}})).json();
  // Explicit image fixtures: exercise the real practice page without changing personal paper data.
@@ -25,10 +25,11 @@ test('all question images fit proportionally when the window and divider shrink'
    return images.length===3&&images.every(image=>{
     const rect=image.getBoundingClientRect();
     return image.naturalWidth>0&&rect.width>0&&rect.height>0&&
-     Math.abs(rect.width/image.naturalWidth-rect.height/image.naturalHeight)*Math.min(image.naturalWidth,image.naturalHeight)<.04&&
+     Math.abs(rect.width-area.width)<.5&&getComputedStyle(image).objectFit==='fill'&&
      rect.top>=area.top-.5&&rect.bottom<=area.bottom+.5&&rect.left>=area.left-.5&&rect.right<=area.right+.5&&
      rect.top>=bounds.top&&rect.bottom<=bounds.bottom;
-   })&&el.scrollHeight<=el.clientHeight+1;
+   })&&Math.abs(images[0].getBoundingClientRect().top-area.top)<.5&&
+    Math.abs(images.at(-1)!.getBoundingClientRect().bottom-area.bottom)<.5&&el.scrollHeight<=el.clientHeight+1;
   })).toBeTruthy();
  }
  for(const viewport of [{width:1440,height:1000},{width:640,height:520},{width:480,height:420},{width:1000,height:640}]){

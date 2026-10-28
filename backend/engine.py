@@ -4,6 +4,8 @@ import sympy as s
 from sympy.integrals.manualintegrate import integral_steps, manualintegrate
 from sympy.calculus.util import continuous_domain
 from .parser import parse, variable, MathInputError
+from .formal import text as formal_text
+from sympy.core.function import AppliedUndef
 
 
 def equal(a,b):
@@ -33,7 +35,7 @@ def response(op,inp,result,method,trace,verified,assumptions=None,**extra):
                 approx=str(s.N(result,12))
         except (TypeError,AttributeError): pass
     return dict(operation=op,input_latex=s.latex(inp),result_latex=s.latex(result) if result is not None else '',
-        exact_result=str(result) if result is not None else None,approximate_result=approx,method=method,
+        exact_result=formal_text(result) if result is not None else None,approximate_result=approx,method=method,
         assumptions=assumptions or ['所有变量为实数；参数条件另行列出。'],steps=[],verified=bool(verified),
         warnings=list(dict.fromkeys(trace.warnings)),steps_complete=trace.complete,**extra)
 
@@ -224,6 +226,13 @@ def derivative_trace(f,x,tr,depth=0):
         base,n=f.args; rule='power' if base==x else 'chain'; rhs=n*base**(n-1)*s.diff(base,x)
         if base!=x: kids=[sub(base)]
         formula=r'(g(x)^n)^{\prime}=n g(x)^{n-1}g^{\prime}(x)'; explanation='使用幂函数公式；复合底数还需乘以内函数导数。'
+    elif isinstance(f,s.Integral):
+        rule='leibniz';rhs=actual
+        explanation='使用变限积分求导公式：上限处被积函数乘上限导数，减去下限处被积函数乘下限导数；被积函数显含求导变量时另加积分项。'
+    elif isinstance(f,AppliedUndef) and len(f.args)==1:
+        inner=f.args[0];rule='chain';rhs=actual
+        kids=[sub(inner)] if inner!=x else []
+        explanation='未知一元函数保留形式导数，按链式法则乘以内函数导数；负自变量也必须保留符号。'
     elif f.func in (s.sin,s.cos,s.tan,s.cot,s.sec,s.csc,s.exp,s.log,s.asin,s.acos,s.atan,s.sinh,s.cosh,s.tanh):
         inner=f.args[0]; u=s.Dummy('u',real=True); outer=s.diff(f.func(u),u).subs(u,inner)
         rhs=outer*s.diff(inner,x); rule='chain' if inner!=x else f.func.__name__
@@ -238,8 +247,9 @@ def derivative_trace(f,x,tr,depth=0):
     return st
 
 
-def differentiate_job(req):
-    tr=Trace(); f=s.simplify(parse(req['expression'])); x=variable(req.get('variable','x'))
+def differentiate_job(req, *, return_expression=False):
+    from .formal import normalize_partials,FormalPartial
+    tr=Trace(); f=s.simplify(parse(req['expression'],functions=req.get('functions'))); x=variable(req.get('variable','x'))
     if f.has(s.zoo,s.nan,s.oo,-s.oo):raise MathInputError('待求导函数不能包含无穷大或未定义常量。')
     order=req.get('order',1)
     if not isinstance(order,int) or not 1<=order<=8: raise MathInputError('导数阶数需为 1 到 8 的整数。')
@@ -247,12 +257,15 @@ def differentiate_job(req):
     if not isinstance(variables,list) or not 1<=len(variables)<=8: raise MathInputError('偏导变量序列最多 8 个。')
     current=f; steps=[]; vs=[variable(v) for v in variables]
     for v in vs:
-        steps.append(derivative_trace(current,v,tr)); current=s.simplify(s.diff(current,v))
-    check=s.diff(f,*vs)
+        steps.append(derivative_trace(current,v,tr)); current=s.simplify(normalize_partials(s.diff(current,v)))
+    check=f
+    for v in vs:check=normalize_partials(s.diff(check,v))
     out=response('differentiate',s.Derivative(f,*vs,evaluate=False),current,'规则分解求导 + SymPy 交叉验证',tr,equal(current,check) and all_verified(steps))
     out['steps']=steps
+    if f.has(AppliedUndef,s.Integral):out['warnings'].append('未知函数保留符号形式；变限积分需满足相应的连续性和可微条件，工具不额外假定奇偶性。')
+    if current.has(FormalPartial):out['warnings'].append('多元未知函数的高阶偏导按相应阶数连续可微解释；未满足条件时不能据此交换混合偏导。')
     out['warnings'].append('公式在原函数可微的定义域内成立；分母非零，对数与根式需满足实数定义域。')
-    return out
+    return (out,current) if return_expression else out
 
 
 def compute(operation,req):

@@ -5,6 +5,7 @@ root = Path(SPECPATH).parents[1]
 hidden = ['backend.worker', 'backend.importer', 'backend.touchpad_native', 'backend.phonepad', 'pystray._win32', 'uvicorn.protocols.websockets.websockets_impl']
 hidden += collect_submodules('sympy', filter=lambda name: not any(p in ('tests', 'benchmarks') for p in name.split('.')))
 hidden += collect_submodules('uvicorn')
+hidden += collect_submodules('backend.ai')
 datas = [(str(root/'dist'), 'dist'), (str(root/'packaging/windows/mathmaster.ico'), 'packaging/windows')]
 datas += collect_data_files('docx')
 for package in ('sympy', 'pydantic', 'fastapi', 'pystray'):

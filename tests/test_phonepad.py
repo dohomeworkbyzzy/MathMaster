@@ -1,4 +1,5 @@
 import math
+import asyncio
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -47,3 +48,26 @@ def test_pairing_absolute_ink_and_disconnect_commit():
         assert {'type': 'contact', 'down': True, 'id': 0, 'x': .1, 'y': .9} in events
         assert events[-2]['type'] == 'commit'
         assert not session.connected
+
+
+def test_phone_session_survives_long_runtime_and_event_stream_reconnect():
+    async def exercise():
+        bridge = Bridge()
+        session = bridge.session = Session()
+        session.created -= 3600
+        session.connected = True
+        session.control['selected'] = True
+        stream = bridge.events(session)
+        assert 'status' in await anext(stream)
+        assert 'keepalive' in await anext(stream)
+        await stream.aclose()
+        assert not session.closed and not session.attached
+        assert session.connected and not session.control['selected']
+        assert bridge.get(session.token) is session
+        resumed = bridge.events(session)
+        assert 'status' in await anext(resumed)
+        assert session.attached
+        await resumed.aclose()
+        bridge.stop(session.token)
+        assert session.closed
+    asyncio.run(exercise())

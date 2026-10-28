@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+
+test('home resumes the last opened question after reload, preserves work, and continues the same paper',async({page,request})=>{
+ const tag='RESUME-'+Date.now();
+ const imported=await request.post('/api/papers/import',{multipart:{title:tag,subject:'数学一',file:{name:'exam.pdf',mimeType:'application/pdf',buffer:await (await import('node:fs/promises')).readFile('tests/fixtures/exam.pdf')}}});
+ expect(imported.ok()).toBeTruthy();const {id:paperId}=await imported.json();
+ const questions=await (await request.get('/api/questions?paper_id='+paperId)).json();expect(questions.length).toBe(2);
+ const [first,second]=questions;
+ await page.goto('/');await expect(page.getByRole('heading',{name:'继续做题',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'计算工作台',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'本地题库',exact:true}).click();await page.getByLabel('搜索题库').fill(tag);
+ await page.locator('.question-card').first().getByRole('button',{name:'开始练习'}).click();
+ await page.getByLabel('解题笔记',{exact:true}).fill('留给下次继续的思路');await page.getByLabel('我的答案').fill('上次答案');
+ const canvas=page.getByLabel('电子草稿画布'),box=(await canvas.boundingBox())!;
+ await page.mouse.move(box.x+20,box.y+20);await page.mouse.down();await page.mouse.move(box.x+80,box.y+40,{steps:4});await page.mouse.up();
+ await page.getByRole('button',{name:'继续做题',exact:true}).click();
+ const resume=page.getByRole('region',{name:'上次练习',exact:true});await expect(resume).toContainText(tag);
+ await page.screenshot({path:'test-results/resume-home.png',fullPage:true});
+ await page.reload();await resume.getByRole('button',{name:'继续上一道题',exact:true}).click();
+ await expect(page.getByLabel('解题笔记',{exact:true})).toHaveValue('留给下次继续的思路');await expect(page.getByLabel('我的答案')).toHaveValue('上次答案');
+ const saved=await (await request.get('/api/questions/'+first.id)).json();expect(JSON.parse(saved.attempt.draft)).toHaveLength(1);
+ await expect(page.locator('.calculator-pane')).toBeVisible();
+ await page.getByRole('button',{name:'下一题',exact:true}).click();await expect(page.getByRole('region',{name:'题目区'})).toContainText('Differentiate');
+ await page.getByRole('button',{name:'返回首页',exact:true}).click();await page.reload();
+ await expect(resume).toContainText('Differentiate');
+ expect((await (await request.get('/api/questions/'+second.id)).json()).attempt).toEqual({});
+ await resume.getByRole('button',{name:'继续上一道题',exact:true}).click();await page.getByRole('button',{name:'上一题',exact:true}).click();
+ await expect(page.getByLabel('解题笔记',{exact:true})).toHaveValue('留给下次继续的思路');
+});
+
+test('new users can start a question from home, and failed resumes offer a retry',async({page,request})=>{
+ await page.route('**/api/practice/recent',route=>route.fulfill({json:[]}));
+ await page.route('**/api/stats',route=>route.fulfill({json:{questions:0,papers:0,completed:0,wrong:0,calculations:0}}));
+ await page.goto('/');await expect(page.getByRole('heading',{name:'从第一道题开始',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'继续上一道题',exact:true})).toHaveCount(0);
+ await page.locator('.resume-empty').getByRole('button',{name:'新建题目',exact:true}).click();
+ await page.getByLabel('题号',{exact:true}).fill('HOME-NEW-'+Date.now());await page.getByLabel('题目文字',{exact:true}).fill('从首页新建后直接进入的练习题');
+ await page.getByRole('button',{name:'保存题目',exact:true}).click();await expect(page.getByRole('region',{name:'题目区'})).toContainText('从首页新建后直接进入的练习题');
+ await page.getByRole('button',{name:'返回首页',exact:true}).click();
+ const qid=(await (await request.get('/api/practice/recent')).json())[0].id;
+ await page.unroute('**/api/practice/recent');await page.reload();
+ await page.route('**/api/questions/'+qid,route=>route.fulfill({status:404,json:{detail:'题目不存在。'}}));
+ await page.getByRole('button',{name:'继续上一道题',exact:true}).click();await expect(page.getByRole('status')).toContainText('题目不存在');
+ await expect(page.getByRole('heading',{name:'继续做题',exact:true})).toBeVisible();
+ await page.route('**/api/practice/recent',route=>route.fulfill({status:503,json:{detail:'本地服务暂时不可用'}}));
+ await page.reload();await expect(page.getByRole('alert')).toContainText('本地服务暂时不可用');
+ await page.route('**/api/practice/recent',route=>route.fulfill({json:[]}));await page.getByRole('button',{name:'重新读取',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'从第一道题开始',exact:true})).toBeVisible();
+ await page.setViewportSize({width:620,height:470});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBeTruthy();
+});

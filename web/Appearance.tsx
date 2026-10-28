@@ -8,7 +8,7 @@ export const skins=[
  {id:'word',name:'Word 文档',icon:FileText},
  {id:'sheet',name:'Excel 表格',icon:Table2},
 ] as const;
-const filenames:Record<string,string>={calculator:'analysis.py',library:'resources.json',import:'import_data.py',wrong:'review.md',history:'output.log',practice:'workspace.py'};
+const filenames:Record<string,string>={home:'welcome.md',library:'resources.json',import:'import_data.py',wrong:'review.md',history:'output.log',practice:'workspace.py'};
 const documentTitles:Record<Skin,string>={original:'MathMaster · 考研数学学习与计算工作台',code:'analysis.py - workspace - Visual Studio Code',word:'项目分析记录.docx - Word',sheet:'数据分析工作簿.xlsx - Excel'};
 export function skinLabel(skin:Skin,view:string,fallback:string){return skin==='code'?(filenames[view]||'workspace.py'):skin==='word'?'项目分析记录':skin==='sheet'?'数据分析工作簿':fallback;}
 export function useAppearance(){

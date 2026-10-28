@@ -1,0 +1,39 @@
+/* Client-only reading layout; retain native formulas, image proportions and canvas coordinates. */
+html { text-size-adjust: 100%; }
+.app .topbar { height: auto !important; min-height: 44px; padding-block: 6px !important; flex-wrap: wrap; }
+.app .breadcrumbs { min-width: 0; }
+.app .topbar-right { flex-wrap: wrap; gap: 6px; }
+.app :is(.text-button, .secondary.small, .primary.small, .window-control) { font-size: 13px !important; min-height: 30px; }
+.app :is(.rich-text, .question-text .rich-text, .notes-editor) { font-size: 16px; }
+.app .practice-bar { flex-wrap: wrap; height: auto; }
+.app .practice-tools { flex-wrap: wrap; }
+.app .practice-tools .small { padding: 6px 9px; white-space: nowrap; }
+.app .save-status { font-size: 12px !important; }
+.app .sketch .section-heading { height: auto !important; min-height: 32px; flex-wrap: wrap; gap: 5px; }
+.app .sketch .toolbar { flex-wrap: wrap; }
+.app .modal { max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow: auto; }
+.practice-app .pane-heading { background: var(--workspace-paper) !important; color: var(--workspace-ink) !important; height: auto !important; min-height: 32px; flex-wrap: wrap; }
+.practice-app .pane-heading :is(span, .text-button) { color: var(--workspace-ink) !important; }
+.practice-app :is(.question-context > summary, .annotation-summary, .question-review) { color: var(--workspace-muted) !important; }
+@media(max-width: 960px) {
+  .app .sidebar { position: fixed; z-index: 80; box-shadow: 4px 0 20px #0003; }
+  .app.sidebar-closed .sidebar { display: none !important; }
+  .app .main { margin-left: 0 !important; min-width: 0; }
+  .app .skin-status { left: 0; }
+  .app .main-content { padding: 14px !important; margin-inline: 0; }
+  .resume-card { grid-template-columns: minmax(0, 1fr) !important; gap: 16px !important; padding: 20px !important; }
+  .resume-side { border-left: 0 !important; border-top: 1px solid var(--home-border); padding: 16px 0 0 !important; }
+  .resume-side img { max-height: 240px; }
+  .app :is(.office-ribbon, .document-ruler, .sheet-formula, .code-menubar, .code-filetab) { display: none; }
+}
+@media(max-width: 600px) {
+  .app .topbar { align-items: flex-start; }
+  .app .breadcrumbs { flex: 1 1 100%; }
+  .app .topbar-right { width: 100%; justify-content: flex-start; }
+  .app .practice-title { min-width: 0; flex-wrap: wrap; }
+  .app .practice-tools { width: 100%; }
+  .app .practice-panes { padding-inline: 4px !important; }
+  .recent-practice { padding: 12px !important; gap: 8px !important; flex-wrap: wrap; }
+  .recent-practice-state { width: 100%; text-align: left !important; }
+  .app .library-toolbar { flex-wrap: wrap; }
+}

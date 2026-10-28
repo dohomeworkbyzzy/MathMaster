@@ -1,0 +1,11 @@
+.rich-text > .rich-paragraph{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.rich-text > .rich-paragraph + .rich-paragraph{margin-top:.8em}
+.rich-text > .rich-paragraph .inline-formula{font-size:1em;vertical-align:baseline}
+.rich-text > .formula{min-width:0;max-width:100%;margin:.8em 0;padding:6px 0;white-space:normal;scrollbar-width:thin}
+.rich-text > .formula .katex-display{margin:0;text-align:left}
+.rich-text > .formula:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.ai-response .rich-text,.m-reply .rich-text{color:inherit;font-size:14px;line-height:1.95}
+.ai-response .rich-text > .formula,.m-reply .rich-text > .formula{padding:14px 12px;border:1px solid var(--line);border-radius:9px;background:var(--workspace-soft,var(--cream));font-size:16px;line-height:1.6}
+@media(max-width:620px){
+ .ai-response .rich-text > .formula,.m-reply .rich-text > .formula{padding:12px 10px;font-size:15px}
+}

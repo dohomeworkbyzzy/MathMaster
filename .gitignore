@@ -29,3 +29,6 @@ docs/*.png
 docs/做题页面布局调整说明.md
 docs/近15年数学一数学二真题导入说明.md
 docs/触控板原始输入.md
+
+/build/touchpad-helper/
+/public/assets/MathMasterTouchpad.zip

@@ -3,12 +3,15 @@ import os
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
+from .identity import current_user
+from .user_storage import UserConnection
 
 DATA=Path(os.environ.get('MATHMASTER_DATA',Path(__file__).resolve().parents[1]/'data'))
 @contextmanager
-def connection():
+def connection(*,shared=False):
     DATA.mkdir(parents=True,exist_ok=True)
-    db=sqlite3.connect(DATA/'mathmaster.db',timeout=15)
+    db=sqlite3.connect(DATA/'mathmaster.db',timeout=15,factory=UserConnection)
+    db.user_id='zzy' if shared else current_user.get()
     db.row_factory=sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
     try:
@@ -30,6 +33,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS attempts(question_id TEXT PRIMARY KEY REFERENCES questions(id),
           answer TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',draft TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT '未作答',wrong INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS practice_visits(question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+          visited_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS question_annotations(question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+          version INTEGER NOT NULL,strokes TEXT NOT NULL DEFAULT '[]',updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS history(id TEXT PRIMARY KEY,question_id TEXT REFERENCES questions(id),
           operation TEXT NOT NULL,request TEXT NOT NULL,result TEXT NOT NULL,created_at TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS history_question_time ON history(question_id,created_at DESC);

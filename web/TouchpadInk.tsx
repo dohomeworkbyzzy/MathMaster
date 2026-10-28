@@ -1,9 +1,11 @@
-import {useEffect,useRef,useState,type RefObject,type CSSProperties} from 'react';
-import {createPortal} from 'react-dom';
+import {useEffect,useImperativeHandle,useRef,useState,type RefObject,type CSSProperties} from 'react';
+import {createPortal,flushSync} from 'react-dom';
 import {api,json} from './types';
+import {connectLocalTouchpad,type InkStream} from './localTouchpad';
 
 export interface InkPoint{x:number;y:number}
 export type InkStroke=InkPoint[];
+export type InkController={suspend:()=>void};
 type NativeEvent={type:string;down?:boolean;id?:number;x?:number;y?:number;screen_x?:number;screen_y?:number;message?:string;ratio?:number};
 type Session={token:string;code?:string;hosts?:string[];port?:number;devices:{x_range:[number,number];y_range:[number,number];aspect_ratio?:number}[]};
 type Placement={center:InkPoint;width:number;ratio:number};
@@ -27,11 +29,15 @@ function previewBox(mouse:InkPoint,ratio:number,requested:number,target?:Target|
  return {width,height,left:Math.max(12,Math.min(window.innerWidth-width-12,mouse.x-width/2)),top:Math.max(88,Math.min(window.innerHeight-height-12,mouse.y-height/2))};
 }
 
-export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElement|null>;onCommit:(strokes:InkStroke[])=>void}){
+export function TouchpadInk({canvas,onCommit,toolbar,controller}:{canvas:RefObject<HTMLCanvasElement|null>;onCommit:(strokes:InkStroke[])=>void;toolbar:HTMLElement|null;controller:RefObject<InkController|null>}){
+ const [pairing,setPairing]=useState(false),[pairCode,setPairCode]=useState('');
+ const localPage=['127.0.0.1','localhost','[::1]'].includes(window.location.hostname);
+ const connectionBase=useRef('');
  const [active,setActive]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [inkSource,setInkSource]=useState<'touchpad'|'phonepad'>('touchpad');
  const inkSourceRef=useRef<'touchpad'|'phonepad'>('touchpad');
  const [phoneSession,setPhoneSession]=useState<Session|null>(null),[phoneStatus,setPhoneStatus]=useState('等待手机连接');
+ const [showControls,setShowControls]=useState(true);
  const [ratio,setRatio]=useState(1.65),[width,setWidth]=useState(140);
  const [previewSize,setPreviewSize]=useState(()=>{const saved=Number(localStorage.getItem('mathmaster-pad-preview-width'));return saved>=200&&saved<=1000?saved:420;});
  const [,resizeView]=useState(0);
@@ -42,7 +48,7 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
  const targetRef=useRef<Target|null>(null),placement=useRef<Placement|null>(null);
  const hasMousePosition=useRef(false);
  const touching=useRef(false),ignoreUntilLift=useRef(false);
- const stream=useRef<EventSource|null>(null),token=useRef<string|null>(null),disposed=useRef(false),live=useRef(false);
+ const stream=useRef<InkStream|null>(null),token=useRef<string|null>(null),disposed=useRef(false),live=useRef(false);
  const commitHandler=useRef(onCommit);commitHandler.current=onCommit;
  const params=useRef({ratio,width,previewSize});params.current={ratio,width,previewSize};
  const mouseRef=useRef(mouse);mouseRef.current=mouse;
@@ -92,10 +98,16 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
  function stop(save=true){
   if(save)commit();
   live.current=false;stream.current?.close();stream.current=null;
-  if(token.current){const current=token.current;token.current=null;fetch('/api/'+inkSourceRef.current+'/stop',{...json({token:current}),headers:{'Content-Type':'application/json'},keepalive:true}).catch(()=>{});}
+  if(token.current){const current=token.current;token.current=null;connectionBase.current!=='popup'&&fetch(connectionBase.current+'/api/'+inkSourceRef.current+'/stop',{...json({token:current}),headers:{'Content-Type':'application/json'},keepalive:true}).catch(()=>{});}
   setActive(false);
   targetRef.current=null;setTarget(null);placement.current=null;touching.current=false;ignoreUntilLift.current=false;hasMousePosition.current=false;
  }
+ function suspend(){
+  if(inkSourceRef.current!=='phonepad'){if(live.current)stop();return;}
+  commit();phoneControl({selected:false});targetRef.current=null;setTarget(null);hasMousePosition.current=false;
+  ignoreUntilLift.current=touching.current;
+ }
+ useImperativeHandle(controller,()=>({suspend}));
  const stopRef=useRef(stop);stopRef.current=stop;
  const geometryRef=useRef(()=>{});geometryRef.current=()=>{if(live.current){commit();ignoreUntilLift.current=touching.current;selectTarget(mouseRef.current);}};
  const phoneMouseRef=useRef((event:PointerEvent)=>{});phoneMouseRef.current=event=>{
@@ -105,42 +117,52 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
  };
  useEffect(()=>{const moved=(event:PointerEvent)=>phoneMouseRef.current(event);window.addEventListener('pointermove',moved);return()=>window.removeEventListener('pointermove',moved);},[]);
  useEffect(()=>{const resized=()=>resizeView(v=>v+1);window.addEventListener('resize',resized);return()=>window.removeEventListener('resize',resized);},[]);
- useEffect(()=>{if(!active)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous;};},[active]);
+ useEffect(()=>{if(!active||inkSource==='phonepad')return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous;};},[active,inkSource]);
  useEffect(()=>{
   if(!active)return;
   const changed=()=>geometryRef.current();
   const observer=new ResizeObserver(changed);if(canvas.current)observer.observe(canvas.current);
   window.addEventListener('resize',changed);window.addEventListener('scroll',changed,true);
   return()=>{observer.disconnect();window.removeEventListener('resize',changed);window.removeEventListener('scroll',changed,true);};
- },[active]);
+ },[active,toolbar]);
+ const suspendRef=useRef(suspend);suspendRef.current=suspend;
+ const commitRef=useRef(commit);commitRef.current=commit;
  useEffect(()=>{
   disposed.current=false;
   const leave=()=>stopRef.current();
-  const cover=()=>{coverSequence.current++;leave();};
-  const hide=()=>{if(document.hidden)leave();};
-  const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&live.current){event.preventDefault();leave();}};
-  window.addEventListener('mathmaster-cover',cover);window.addEventListener('blur',leave);window.addEventListener('pagehide',leave);
+  const pause=()=>suspendRef.current();
+  const cover=()=>{coverSequence.current++;pause();};
+  const hide=()=>{if(document.hidden)pause();};
+  const flush=()=>flushSync(()=>commitRef.current());
+  const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&live.current){event.preventDefault();if(inkSourceRef.current==='phonepad'){pause();setShowControls(false);}else leave();}};
+  window.addEventListener('mathmaster-cover',cover);window.addEventListener('mathmaster-ink-flush',flush);window.addEventListener('blur',pause);window.addEventListener('pagehide',leave);
   document.addEventListener('visibilitychange',hide);window.addEventListener('keydown',key);
-  return()=>{disposed.current=true;stopRef.current();if(ghostTimer.current)clearTimeout(ghostTimer.current);window.removeEventListener('mathmaster-cover',cover);window.removeEventListener('blur',leave);window.removeEventListener('pagehide',leave);document.removeEventListener('visibilitychange',hide);window.removeEventListener('keydown',key);};
+  return()=>{disposed.current=true;stopRef.current();if(ghostTimer.current)clearTimeout(ghostTimer.current);window.removeEventListener('mathmaster-cover',cover);window.removeEventListener('mathmaster-ink-flush',flush);window.removeEventListener('blur',pause);window.removeEventListener('pagehide',leave);document.removeEventListener('visibilitychange',hide);window.removeEventListener('keydown',key);};
  },[]);
- async function start(input:'touchpad'|'phonepad'='touchpad'){
+ async function start(input:'touchpad'|'phonepad'='touchpad',helper=false){
+  if(input==='touchpad'&&!localPage&&!helper){setPairing(true);setError('');return;}
   if(live.current)stop();
   inkSourceRef.current=input;setInkSource(input);
-  setBusy(true);setError('');const startingCoverSequence=coverSequence.current;
+  setBusy(true);setError('');setShowControls(true);const startingCoverSequence=coverSequence.current;
   try{
-   const session=await api<Session>('/api/'+input+'/start',json({}));token.current=session.token;
+   connectionBase.current=input==='touchpad'&&helper?'popup':'';
+   let session:Session,helperStream:InkStream|null=null;
+   if(helper){
+    const connected=await connectLocalTouchpad(pairCode.trim());session=connected.session;helperStream=connected.source;stream.current=helperStream;setPairing(false);setPairCode('');
+   }else session=await api<Session>('/api/'+input+'/start',json({}));
+   token.current=session.token;
    if(input==='phonepad'){setPhoneSession(session);setPhoneStatus('等待手机连接');setWidth(800);params.current.width=800;}
    else {setWidth(140);params.current.width=140;}
-   if(disposed.current||startingCoverSequence!==coverSequence.current||document.documentElement.dataset.covered==='true'){stop(false);return;}
+   if(disposed.current||(input==='touchpad'&&(startingCoverSequence!==coverSequence.current||!canvas.current||document.documentElement.dataset.covered==='true'))){stop(false);return;}
    const device=session.devices[0],r=device.aspect_ratio??(device.x_range[1]-device.x_range[0])/(device.y_range[1]-device.y_range[0]);
    setRatio(r);params.current.ratio=r;
    // No guessed initial position: a real external mouse event must select paper.
    targetRef.current=null;setTarget(null);placement.current=null;touching.current=false;ignoreUntilLift.current=false;hasMousePosition.current=false;
    pending.current=[];stroke.current=[];identity.current=null;setLines([]);setActive(true);live.current=true;
-   const source=new EventSource('/api/'+input+'/events?token='+encodeURIComponent(session.token));stream.current=source;
-   source.onmessage=message=>{
+   const source:InkStream=helperStream||new EventSource('/api/'+input+'/events?token='+encodeURIComponent(session.token));stream.current=source;
+   source.addEventListener('message',message=>{
     if(!live.current)return;
-    let event:NativeEvent;try{event=JSON.parse(message.data);}catch{return;}
+    let event:NativeEvent;try{event=JSON.parse((message as MessageEvent).data);}catch{return;}
     if(event.type==='contact'){
      lastTouch.current=performance.now();
      touching.current=!!event.down;
@@ -155,7 +177,10 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
     }else if(event.type==='surface'&&input==='phonepad'&&event.ratio){
      commit();setRatio(event.ratio);params.current.ratio=event.ratio;ignoreUntilLift.current=touching.current;selectTarget(mouseRef.current);
     }else if(event.type==='commit'&&input==='phonepad')commit();
-    else if(event.type==='status'&&input==='phonepad')setPhoneStatus(event.message||'');
+    else if(event.type==='status'&&input==='phonepad'){
+     const status=event.message||'';setPhoneStatus(status);
+     setShowControls(status!=='手机已连接');if(status!=='手机已连接')suspendRef.current();
+    }
     else if(event.type==='mouse'){
      // Only a hardware mouse event commits. Browser pointermove from the pad is ignored.
      commit();
@@ -167,8 +192,8 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
      selectTarget({x,y});
     }else if(event.type==='pause')stopRef.current();
     else if(event.type==='error'){setError(event.message||'原始触控板连接已断开。');stopRef.current();}
-   };
-   source.onerror=()=>{if(live.current){setError(input==='phonepad'?'手机书写连接已断开，请重新开启。':'原始触控板连接已断开，请重新开启。');stopRef.current();}};
+   });
+   source.addEventListener('error',()=>{if(live.current){if(input==='phonepad'){suspendRef.current();setPhoneStatus('电脑连接中断，正在自动重连');setShowControls(true);}else{setError('原始触控板连接已断开，请重新开启。');stopRef.current();}}});
   }catch(e){setError((e as Error).message);stop(false);}
   finally{if(!disposed.current)setBusy(false);}
  }
@@ -176,11 +201,14 @@ export function TouchpadInk({canvas,onCommit}:{canvas:RefObject<HTMLCanvasElemen
   ?{width:target.screenWidth,height:target.screenHeight,left:target.left,top:target.top}
   :previewBox(mouse,ratio,previewSize,target);
  return <>
+  {pairing&&createPortal(<div className="modal-backdrop"><section className="modal" role="dialog" aria-label="连接本机触控板"><div className="modal-heading"><h3>连接本机触控板</h3><button aria-label="关闭触控板配对" disabled={busy} onClick={()=>setPairing(false)}>×</button></div><p>下载并解压助手，双击 MathMasterTouchpad.exe，保持窗口开启。连接外接鼠标后，输入助手窗口中的配对码。</p><p><a className="text-button" href="/assets/MathMasterTouchpad.zip" download>下载 Windows 触控板助手</a></p><label className="field-label">本机助手配对码<input aria-label="本机助手配对码" inputMode="numeric" maxLength={8} autoComplete="off" value={pairCode} onChange={e=>setPairCode(e.target.value.replace(/\D/g,''))}/></label><p className="muted">需要支持绝对坐标的 Windows 触摸板。连接时会打开本机助手窗口，请允许弹出窗口并保持它开启。</p>{error&&<p role="alert" className="touchpad-error">{error}</p>}<div className="modal-actions"><button className="secondary" disabled={busy} onClick={()=>setPairing(false)}>取消</button><button className="primary" disabled={busy||pairCode.length!==8} onClick={()=>void start('touchpad',true)}>{busy?'连接中…':'连接本机触控板'}</button></div></section></div>,document.body)}
+  {toolbar&&createPortal(<>
   <button className="trackpad-toggle" aria-label="触控板书写" aria-pressed={active&&inkSource==='touchpad'} disabled={busy} title="读取触控板绝对坐标，移动外接鼠标收笔" onClick={()=>active&&inkSource==='touchpad'?stop():start()}>{busy?'连接中…':'触控板书写'}</button>
-  <button className="trackpad-toggle" aria-label="手机书写" aria-pressed={active&&inkSource==='phonepad'} disabled={busy} title="手机整块区域对应电脑草稿落笔框" onClick={()=>active&&inkSource==='phonepad'?stop():start('phonepad')}>手机书写</button>
+  <button className="trackpad-toggle" aria-label="手机书写" aria-pressed={active&&inkSource==='phonepad'} disabled={busy} title={active&&inkSource==='phonepad'?phoneStatus+' · 点击展开或收起连接设置':'手机整块区域对应电脑草稿落笔框'} onClick={()=>active&&inkSource==='phonepad'?setShowControls(value=>!value):start('phonepad')}>手机书写</button>
   {error&&<span className="touchpad-error" role="alert">{error}</span>}
-  {active&&createPortal(<div className="touchpad-overlay" role="dialog" aria-label="触控板放大书写区">
-   <div className="touchpad-controls" onPointerDownCapture={e=>{if(performance.now()-lastTouch.current<300)e.preventDefault();}}><span>{inkSource==='phonepad'?'手机书写 · Esc 收笔':'触控板 · Esc 收笔'}</span>{inkSource==='phonepad'&&phoneSession&&<span role="status">电脑 IP：{phoneSession.hosts?.join(' / ')||'请查看电脑网络设置'} · 端口 {phoneSession.port||8766} · 配对码 {phoneSession.code} · {phoneStatus}</span>}{inkSource==='touchpad'&&<label>书写区<input aria-label="书写区大小" type="range" min="200" max="1000" step="20" value={previewSize} onChange={e=>{const size=Number(e.target.value);setPreviewSize(size);localStorage.setItem('mathmaster-pad-preview-width',String(size));}}/><output>{Math.round(previewWidth)}px</output></label>}<label>落笔范围<select aria-label="落笔范围大小" style={inkSource==='phonepad'?{width:190}:undefined} value={width} onChange={e=>{commit();const next=Number(e.target.value);setWidth(next);params.current.width=next;selectTarget(mouseRef.current);}}><option value={80}>小</option><option value={140}>中</option><option value={220}>大</option><option value={400}>宽范围</option><option value={800}>草稿整宽（手机全区域）</option></select></label><button onClick={()=>{if(performance.now()-lastTouch.current>300)stop();}}>完成</button><span className="touchpad-location-status" role="status">{target?(inkSource==='phonepad'?'手机整块书写区 = 此落笔框 · 移动鼠标收笔并换位置':'在框内落笔 · 移动鼠标收笔并换位置'):'将外接鼠标移到草稿上，选择落笔位置'}</span></div>
+  </>,toolbar)}
+  {active&&toolbar&&(inkSource==='touchpad'||showControls||target)&&createPortal(<div className={'touchpad-overlay'+(inkSource==='phonepad'?' phonepad-overlay':'')} role="dialog" aria-label="触控板放大书写区">
+   {(inkSource==='touchpad'||showControls)&&<div className="touchpad-controls" onPointerDownCapture={e=>{if(performance.now()-lastTouch.current<300)e.preventDefault();}}><span>{inkSource==='phonepad'?'手机书写 · Esc 收笔':'触控板 · Esc 收笔'}</span>{inkSource==='phonepad'&&phoneSession&&<span role="status">电脑 IP：{phoneSession.hosts?.join(' / ')||'请查看电脑网络设置'} · 端口 {phoneSession.port||8766} · 配对码 {phoneSession.code} · {phoneStatus}</span>}{inkSource==='touchpad'&&<label>书写区<input aria-label="书写区大小" type="range" min="200" max="1000" step="20" value={previewSize} onChange={e=>{const size=Number(e.target.value);setPreviewSize(size);localStorage.setItem('mathmaster-pad-preview-width',String(size));}}/><output>{Math.round(previewWidth)}px</output></label>}<label>落笔范围<select aria-label="落笔范围大小" style={inkSource==='phonepad'?{width:190}:undefined} value={width} onChange={e=>{commit();const next=Number(e.target.value);setWidth(next);params.current.width=next;selectTarget(mouseRef.current);}}><option value={80}>小</option><option value={140}>中</option><option value={220}>大</option><option value={400}>宽范围</option><option value={800}>草稿整宽（手机全区域）</option></select></label><button onClick={()=>{if(performance.now()-lastTouch.current>300){if(inkSource==='phonepad'){commit();setShowControls(false);}else stop();}}}>完成</button><span className="touchpad-location-status" role="status">{target?(inkSource==='phonepad'?'手机整块书写区 = 此落笔框 · 移动鼠标收笔并换位置':'在框内落笔 · 移动鼠标收笔并换位置'):'将外接鼠标移到草稿上，选择落笔位置'}</span></div>}
    {target&&<div className="touchpad-target" role="img" aria-label="草稿落笔范围" style={{left:target.left,top:target.top,width:target.screenWidth,height:target.screenHeight}}><span>落笔范围</span></div>}
    {target&&<svg className="touchpad-writing" aria-label="放大笔迹" width={previewWidth} height={previewHeight} style={{left,top,...(inkSource==='phonepad'?{background:'transparent',boxShadow:'none',border:'none'}:{})}} viewBox={`0 0 ${previewWidth} ${previewHeight}`}>
     {inkSource==='touchpad'&&<path className="touchpad-center" d={`M${previewWidth/2-6} ${previewHeight/2}h12 M${previewWidth/2} ${previewHeight/2-6}v12`}/>}

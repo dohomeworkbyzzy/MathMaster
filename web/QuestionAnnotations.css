@@ -1,0 +1,17 @@
+.question-image-frame{position:relative;flex:none;line-height:0;width:100%;max-width:100%}
+.question-image-frame>a{display:block;line-height:0}
+.question-annotation-overlay{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;pointer-events:none;filter:none;z-index:1}
+.question-annotation-overlay.annotation-active{pointer-events:auto;cursor:crosshair;touch-action:none;user-select:none}
+.question-annotation-overlay.annotation-eraser.annotation-active{cursor:cell}
+.question-annotation-overlay:focus-visible{outline:1px dashed var(--workspace-accent);outline-offset:-1px}
+.question-annotation-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:5px 8px;flex-shrink:0;padding:6px 4px;margin-bottom:5px;border:1px solid var(--workspace-border);border-radius:3px;background:var(--workspace-soft);color:var(--workspace-ink);font-size:11px;line-height:1.5}
+.question-annotation-toolbar>button{padding:4px 6px;min-height:26px;font-size:11px;border:1px solid transparent;border-radius:3px;white-space:nowrap}
+.question-annotation-toolbar>button[aria-pressed=true]{color:var(--workspace-accent);border-color:var(--workspace-accent);background:var(--workspace-paper)}
+.question-annotation-toolbar>label{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--workspace-ink)}
+.question-annotation-toolbar select{width:auto;padding:3px;max-width:68px;font-size:11px;color:var(--workspace-ink);background:var(--workspace-paper);border:1px solid var(--workspace-border);border-radius:3px}
+.annotation-save-status{margin-left:auto;color:var(--workspace-muted);font-size:10px;line-height:1.7}
+.annotation-error{flex-shrink:0;padding:7px;margin-bottom:6px;border:1px solid var(--workspace-border);font-size:11px;color:var(--workspace-ink);background:var(--workspace-soft);line-height:1.8}
+.annotation-error button{font-size:11px;color:var(--workspace-accent);text-decoration:underline;margin-left:7px}
+.question-annotation-toggle[aria-pressed=true]{color:var(--workspace-accent);font-weight:600}
+.annotation-summary{font-size:10px;color:var(--workspace-muted);white-space:nowrap;font-weight:400}
+@media(max-width:620px){.question-annotation-toolbar{gap:3px;padding:4px 2px}.question-annotation-toolbar>button{padding:3px 4px}.question-annotation-toolbar>button>span{display:none}.annotation-save-status{font-size:9px}.annotation-summary{display:none}}
